@@ -105,25 +105,38 @@ Before launch, live may be updated at the end of each build stage. After launch:
   - Chhatrapati Sambhajinagar ← Aurangabad
   - Dharashiv ← Osmanabad
   - Ahilyanagar ← Ahmednagar
-  - Kushavati ← South Goa (four talukas moved: Quepem, Sanguem, Dharbandora, Canacona; HQ Quepem; notified 31 Dec 2025)
+- **Kushavati is deliberately deferred — do not flag its absence.** Goa's new district (carved from South Goa; four talukas moved: Quepem, Sanguem, Dharbandora, Canacona; HQ Quepem; notified 31 Dec 2025) is not yet in the regions table. Goa is seeded as North Goa and South Goa only. Add Kushavati only when the owner says so.
 - Regions are never deleted, only deactivated, with an optional pointer to a successor region.
 - Buyer-added cities are created unapproved and require admin approval, to prevent duplicate spellings.
 - Always resolve regions **by ID, never by name.** Sangli is simultaneously a district, a taluka and a city. Every dropdown must display level and parent.
-- Seeded at launch: all 36 Maharashtra districts and Goa's districts. Talukas and cities are added as growth reaches them.
+- Seeded at launch: all 36 Maharashtra districts and Goa's two districts (North Goa, South Goa — Kushavati deferred, see above). Talukas and cities are added as growth reaches them.
 
 ---
 
 ## 8. How a rate is built
 
-A buyer's final rate is resolved, in one central function, from:
+### Catalogue structure
+- **Segment** (TMT Bars) → **product / grade** (Fe500, Fe500D, Fe550D).
+- **Sizes belong to the segment, not the grade.** TMT has one size list (8–32mm) shared by every TMT grade; the same holds for angles and channels.
 
-1. **Base rate** set by the seller for a segment
-2. **Size difference** from the applicable size chart
-3. **Loading** from the applicable loading chart
-4. **Area difference** for the buyer's area
-5. **Trade discount** from the applicable discount chart — flat per tonne or percentage of value
+### The formula
+A buyer's final rate is resolved, in one central function, as:
 
-**Discount is shown to the buyer as a separate line beneath the rate**, e.g. `₹40,300 — less ₹500/tonne`. All other components are combined: the buyer sees only his final figure, never the base or the individual differences.
+```
+final rate = base rate + grade premium + size difference + loading + area difference
+             (trade discount shown separately, beneath)
+```
+
+1. **Base rate** — set by the seller, per the product's base unit (tonne or kg).
+2. **Grade premium** — the premium a grade carries over the base (e.g. Fe550D over Fe500). An **area-level setting**, resolved like the charts (section 9). In Maharashtra and Goa it is a single premium per grade. *Design only — its table is built together with area settings.*
+3. **Size difference** — from the applicable size chart. A size chart is assigned **per segment by default**, and **per grade where a region needs it** (some regions give each grade its own size differences). Per-grade assignment has no screen yet, but nothing in the data model may prevent it.
+4. **Loading** — from the applicable loading chart.
+5. **Area difference** — for the buyer's area.
+6. **Trade discount** — from the applicable discount chart, flat or a percentage of value. **Not added into the rate**: shown as a separate line beneath it.
+
+**Loading and discount follow the product's base unit**: per tonne for tonne products, per kg for kg products. Never mix units inside one calculation.
+
+**Discount is shown to the buyer as a separate line beneath the rate**, e.g. `₹40,300 — less ₹500/tonne`. All other components are combined: the buyer sees only his final figure, never the base, the grade premium or the individual differences.
 
 ### Precedence
 1. **Territory allocation** — if the area is allocated to a distributor, the manufacturer's rate is not shown there; the buyer is pointed to the distributor.
@@ -136,18 +149,27 @@ A buyer's final rate is resolved, in one central function, from:
 - A seller may publish one flat rate with no area configuration at all. This is a distinct mode and must not resolve as "not served".
 - Resolution must be a single indexed query, not a loop of separate lookups.
 
+### Units
+- The base rate is per the **product's base unit** — tonne or kg — not always per tonne.
+- Supported units: **tonne, kg, piece, metre**. Every conversion goes **through weight**, using the size's standard weight per metre and standard piece length.
+- Weight per piece = weight per metre × piece length. It is derived, never stored, so the two can never disagree.
+- The unit a buyer sees is the **display unit**, an area-level setting (section 9). Conversion to it happens in the rate engine, never in a screen.
+- A size whose weight is not yet verified cannot be active, and must never be used to convert a rate.
+
 ---
 
 ## 9. Area-level settings
 
 Each of the following can be attached to an area and **resolves independently**, most specific first. If not set at a level, it inherits from the level above:
 
-- size difference chart
+- grade premium (per grade)
+- size difference chart (per segment by default; per grade where needed)
 - loading chart
 - discount chart
 - area difference value
 - products sold in that area
 - whether the area is served
+- display unit (tonne, kg, piece or metre)
 
 Example: Maharashtra → Chart A, +₹200. Pune → +₹300 (inherits Chart A). Mumbai → Chart B, +₹500.
 
@@ -231,10 +253,14 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 ## 17. Glossary
 
 - **Segment** — a product family: TMT bars, angles, channels.
-- **Base rate** — the seller's reference price for a segment, per tonne.
+- **Grade** — a product within a segment, e.g. Fe500D within TMT. Grades share the segment's size list.
+- **Base rate** — the seller's reference price, per the product's base unit (tonne or kg). Grades add a grade premium on top.
+- **Grade premium** — the premium a grade carries over the base rate. An area-level setting.
+- **Unit** — what a rate is quoted per: tonne, kg, piece or metre. Each product has a base unit (tonne or kg) the seller prices in; each area has a display unit the buyer sees. Units convert through weight.
+- **Weight per metre** — the standard weight of one metre of a size, in kg (e.g. 12mm TMT = 0.888 kg/m, from IS 1786). The basis of every unit conversion; multiplied by piece length it gives the weight of one piece.
 - **Size difference** — the premium or discount for a particular size relative to base.
-- **Loading** — a per-tonne handling charge added to the rate.
-- **Trade discount** — an upfront discount, flat per tonne or a percentage, shown on the invoice.
+- **Loading** — a handling charge added to the rate, per the product's base unit (per tonne or per kg).
+- **Trade discount** — an upfront discount, flat per base unit (tonne or kg) or a percentage, shown on the invoice.
 - **Taluka** — the administrative level between district and city; the level freight is typically priced at.
 - **Market close** — the seller's daily closing time; after it, his last rate shows tagged "market closed".
 - **Territory allocation** — a manufacturer assigning an area to a distributor, who then publishes his own rates there.
