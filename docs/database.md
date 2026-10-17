@@ -183,6 +183,20 @@ Regular has no rows here, because it covers every family.
 - **Changes:** only admins change brands. Nothing is ever deleted, not even with the master key.
 - **Checks:** `tests/database/brands.sql`.
 
+### Ownership (step 2): `brands.owner_id` and `brand_claims`
+- **`brands.owner_id`:** the manufacturer who owns the brand. Public.
+  - **Set only by approving a claim:** not even an admin or the master key can set it directly.
+  - **Never Regular:** Regular is never owned.
+  - **Several brands:** one manufacturer can own several.
+- **`brand_claims`:** every claim to own a brand.
+  - **What it records:** brand, claimant and time, and status `claimed` → `approved` or `rejected`; `approved` → `ended`. It also records who decided and when, and who ended it and when.
+  - **History:** the status only moves forward, and claims are never deleted.
+  - **Who sees them:** the claimant and admins.
+- **`claim_brand(brand)`:** a seller claims an approved brand that has no owner. Plain refusals, e.g. "Check Steel already has an owner. If you believe it is yours, contact ALEE."
+- **`decide_brand_claim(claim, approve)`:** an admin approves, making the claimant the owner, or rejects. A brand that already has an owner must have it ended first.
+- **`end_brand_ownership(brand)`:** an admin ends ownership, for example when a brand is sold.
+- **Checks:** `tests/database/brand_ownership.sql`.
+
 ---
 
 ## Area: accounts and sellers
