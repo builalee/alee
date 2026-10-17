@@ -393,14 +393,16 @@ What a seller attaches to areas, per product family: area difference, charts, gr
 
 **"Not set" and zero:** throughout these tables an empty field means **not set**, and the setting carries down from the area above. A value, **including 0**, means set here. Zero never carries down.
 
+**Brands:** all of this is per brand line. Until brands step 11, a save or lookup without a brand means Regular, and publishing uses the Regular line (step 6 gives publishes a brand).
+
 **Not set anywhere:** the lookups return empty, never 0. For loading, area difference, grade premium and size difference, empty means **missing**: the rate engine must flag it and leave that price out, never price it at zero. A seller who means zero enters 0. Only a missing discount simply means no discount (decisions 2.24).
 
 ### `area_setting_versions` — each saved area setup
 
 | Field | Meaning |
 |---|---|
-| `seller_id`, `segment_id` | Whose setup, for which product family. |
-| `version_number` | 1, 2, 3… per seller per family. A publish will record which version it used. |
+| `seller_id`, `brand_id`, `segment_id` | Whose setup, for which brand and product family (the brand line). Each brand has its own versions; charts stay per seller and family, so two brands can point at the same chart. |
+| `version_number` | 1, 2, 3… per seller, brand and family. A publish will record which version it used. |
 | `unit` | `tonne` or `kg`: the unit of every amount in this version (the seller's unit for the family when saved). |
 | `created_at` | When it was saved. |
 
@@ -427,17 +429,17 @@ An area the version doesn't mention has no row; everything carries down to it fr
 | `is_sold` | `false` = not sold here; `true` = sold here (overrides a broader "not sold"); empty = not set. If never set, the grade is sold. |
 
 ### How area settings are written and looked up
-- **`save_area_settings(family, areas, seller)`** is the only way to save. It saves the whole setup as a new, complete version and returns its id.
+- **`save_area_settings(family, areas, seller, brand)`** is the only way to save. The seller must sell that brand in that family ("Add Check Rods to the brands you sell first."). It saves the whole setup as a new, complete version and returns its id.
   - "Everywhere" must be given as `"everywhere": true`. An area with no region is refused.
   - A misspelt setting name is refused, so a typo can never become "not set".
   - An empty list means the seller serves nowhere.
   - A seller saves his own; an admin may save for any seller.
-- **`resolve_area_settings(seller, family, area, grade, version)`** looks up the settings that apply to the whole area: served or not, area difference, discount chart, display unit, grade premium, and whether the grade is sold. One query; latest version unless one is given.
+- **`resolve_area_settings(seller, family, area, grade, version, brand)`** looks up the settings that apply to the whole area: served or not, area difference, discount chart, display unit, grade premium, and whether the grade is sold. One query; latest version unless one is given.
   - **Order:** each setting is looked up separately, most specific first: city, taluka, district, state, everywhere. The first value actually set wins, so 0 is used and never skipped.
   - **Served:** decided by the most specific area the seller mentioned. An exclusion there beats any broader area, including "everywhere". Nothing mentioned means not served. A city named inside an excluded district is served.
   - **Not served:** every setting comes back empty, so nothing is revealed.
   - **No size or loading figures:** it deliberately returns none; those are per size.
-- **`resolve_size_figures(seller, family, area, grade, version)`** looks up size differences and loading **one size at a time**. It returns one row per size switched on in the family, and no rows if the area isn't served.
+- **`resolve_size_figures(seller, family, area, grade, version, publish, brand)`** looks up, for one brand line, size differences and loading **one size at a time**. It returns one row per size switched on in the family, and no rows if the area isn't served.
   - **Size difference:** for each size, closest area first. At each area, the grade's own size chart is looked at first (if that area gives the grade one), then the area's family size chart. The first figure found wins. Example: Maharashtra 8mm 6,500, 10mm/12mm 5,500; Satara 10mm/12mm 5,000 → a Satara buyer gets 8mm 6,500 (Maharashtra) and 10mm/12mm 5,000 (Satara).
   - **Loading:** for each size, the closest area with a loading chart answers. It uses that chart's figure for the size, or else its all-sizes figure.
   - **For each size it reports** the figure, its unit (the chart's), where it came from (area name or "everywhere"), whether it came from the grade's chart or the family chart, and whether the seller offers the size.
