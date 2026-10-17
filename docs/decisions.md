@@ -159,7 +159,7 @@ Ratings, AI suggestions, market averages, open bidding, dashboards and similar f
 
 ### 2.17 Sellers choose exactly what they sell; a missing figure is an error, never zero
 **Decision (2026-10-17):**
-- **Choosing:** within each product family he deals in, a seller explicitly selects which grades and which sizes he sells, with a select-all option. Nothing is selected by default.
+- **Choosing:** ~~within each product family he deals in, a seller explicitly selects which grades and which sizes he sells~~ **Updated 2026-10-17 (brands, 2.40):** for each brand he sells in a product family, a seller explicitly selects which grades and which sizes he sells, with a select-all option. Nothing is selected by default.
 - **Not selected means not offered:** a grade or size not selected is "not offered" to his buyers.
 - **New sizes start unselected:** a size switched on in the catalogue later starts unselected for every seller. "Select all" covers only what exists at that moment.
 - **Nothing is deleted:** selecting and unselecting never deletes anything, and every change is kept as history, with who made it.
@@ -189,7 +189,7 @@ An area is a state, district, taluka or city, or **"everywhere"**, a level above
 
 ### 2.20 Area settings are saved as versions, and are private
 **Decision (2026-10-17):**
-- **Versions:** a seller's whole area setup for one product family is saved as a version. Every save makes a new version; old versions are never changed, added to or deleted, not even by the database owner. Each version records its unit, and a publish will later record which version it used.
+- **Versions:** a seller's whole area setup for ~~one product family~~ **one brand in one product family (updated 2026-10-17, brands, 2.40)** is saved as a version. Every save makes a new version; old versions are never changed, added to or deleted, not even by the database owner. Each version records its unit, and a publish will later record which version it used.
 - **Who can read them:** only the seller and admins. Not buyers, not other sellers, not visitors.
 
 **Why:**
@@ -275,7 +275,7 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 
 ### 2.25 One publish is one action, for one or more product families
 **Decision (2026-10-17):**
-- **One action:** a publish is one action by a seller. Updating several product families together is one publish, so buyers get **one** notification (1.6).
+- **One action:** a publish is one action by a seller. Updating several ~~product families~~ **brands and product families (updated 2026-10-17, brands, 2.42)** together is one publish, so buyers get **one** notification (1.6).
 - **Time:** set by the database at the moment of publishing, and can never be back-dated.
 - **Basic rate:** must be above zero, exact to 4 decimal places (2.13), in the seller's unit for that family.
 - **Who:** a seller publishes only for himself. An admin may publish on his behalf during setup, and the publish records that an admin did it, and which one.
@@ -298,12 +298,12 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 **Why:** 4.2: a record that can be rewritten cannot settle a dispute.
 
 ### 2.28 Current rates point to the latest publish; final rates are not pre-calculated
-**Decision (2026-10-17):** For each seller and product family, ALEE keeps a pointer to the latest publish. The rate engine works out each buyer's final figure from it when asked. Final rates for every area are not calculated in advance.
+**Decision (2026-10-17):** For each seller ~~and product family~~ **, brand and product family (updated 2026-10-17, brands, 2.40)**, ALEE keeps a pointer to the latest publish. The rate engine works out each buyer's final figure from it when asked. Final rates for every area are not calculated in advance.
 **Why:** Pre-calculating every area would multiply storage (4.1) and create a second copy of the truth that could drift from what the engine would say.
 
 ### 2.29 "Not quoting today" is a switch, not a publish
 **Decision (2026-10-17):**
-- **One tap, no publish:** a seller can switch a product family off with one tap, without publishing. Buyers then see "not quoting" and no figure.
+- **One tap, no publish:** a seller can switch ~~a product family~~ **a brand in a product family (updated 2026-10-17, brands, 2.40)** off with one tap, without publishing. Buyers then see "not quoting" and no figure.
 - **Switching back on:** it stays off until the seller switches it back on, **or publishes that family**. Publishing switches it back on automatically, the same way publishing reopens a closed market, and that is recorded in the history at the publish time. *(Changed 2026-10-17: originally publishing left it off.)*
 - **History:** every switch on or off is kept with its time and who made it.
 - **Separate from sizes:** this is temporary and separate from not selling a size or grade at all (2.17).
@@ -346,9 +346,9 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 
 ### 2.33 Territory allocation is an offer the distributor accepts
 **Decision (2026-10-17):**
-- **What it is:** a manufacturer allocates an area to a distributor, for one product family. The area can be any level: state, district, taluka or city.
+- **What it is:** a manufacturer allocates an area to a distributor, for ~~one product family~~ **one brand he owns, in one product family that brand covers (updated 2026-10-17, brands, 2.43)**. The area can be any level: state, district, taluka or city.
 - **Offer first:** it is only an offer until the distributor accepts. Until then it has no effect. He can also decline.
-- **One distributor per area, per family, per manufacturer:** while one distributor holds an area, or has an open offer for it, no other distributor can be given it. Different families can go to different distributors: Satara TMT to one, Satara angles to another.
+- **One distributor per area, per ~~family, per manufacturer~~ brand and family (updated 2026-10-17, brands, 2.43):** while one distributor holds an area, or has an open offer for it, no other distributor can be given it. Different families can go to different distributors: Satara TMT to one, Satara angles to another.
 - **Who does what:** only the manufacturer offers. Only the distributor accepts or declines. Either side can end it. Admins can do any of these, and it is recorded that an admin did.
 
 **Why:** A distributor takes on obligations in his area. An allocation he never agreed to would point buyers at someone who isn't expecting them.
@@ -374,6 +374,69 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
   - **The distributor** sees allocations offered to him or held by him.
   - **Everyone:** that an allocation is in effect is public, because buyers will see "authorised distributor" tags and be pointed to distributors. Offers, declines and history stay between the two sides and admins.
 
+
+### 2.37 Brands: ALEE keeps the list
+**Decision (2026-10-17):**
+- **ALEE's list:** ALEE keeps the brand list. A seller can request a missing brand, and an admin approves it, to prevent duplicate spellings. Old names and other spellings are kept for search, as with regions.
+- **Regular:** an unbranded option called **"Regular"** exists for every product family. It is shown with the family's name, "Regular TMT" or "Regular Angles", and is never owned.
+- **Families:** a brand can cover more than one product family.
+- **Who sells:** any seller can sell any approved brand, even before its manufacturer joins ALEE.
+
+**Why:** Distributors and retailers quote different rates for different brands of the same product. Without brands, a rate can't say what is being sold.
+
+### 2.38 Brand ownership
+**Decision (2026-10-17):**
+- **Claiming:** a manufacturer claims a brand, and an admin approves the claim.
+- **Owners:** one owner per brand; a manufacturer can own several.
+- **Appointing distributors:** only the owner can appoint authorised distributors for it.
+- **History:** every claim, approval and rejection is kept.
+
+### 2.39 Factories
+**Decision (2026-10-17):**
+- **Separate accounts:** a brand can have several factories. Each is its own seller account, with its own rates, setup and closing time.
+- **Linking:** a factory account must **accept** being linked to a brand, and can decline, or leave later. Every step is kept in history.
+- **Coverage:** the owner decides which factory covers which area, **per brand and product family**, so a brand can serve TMT and angles in the same area from different factories. One factory per area, and the closer area wins.
+- **What buyers see:** the rate from the factory serving their area. The brand appears as one brand.
+
+**Why the factory must accept:** otherwise an owner could attach someone else's account and show that seller's rates under his brand.
+
+### 2.40 Each brand a seller sells has its own setup
+**Decision (2026-10-17):**
+- **Brand line:** each brand a seller sells, in each product family, has its own setup:
+  - basic rate;
+  - grades and sizes;
+  - area settings (size chart, loading, discount, premiums, areas);
+  - "not quoting".
+
+  This is called a **brand line**, for example *Bala Traders – Tata – TMT*.
+- **Unit:** the pricing unit stays per product family, shared by all his brands in it.
+- **Closing time:** stays per seller account.
+- **Shared charts:** charts can be shared between brands; two brand lines can point at one chart.
+- **Copying setup:** a new brand's setup can be copied from another of his brands in one tap. The copy points at the same charts.
+
+**Why:** Brands differ, but are often similar. Sharing and copying keep a seller's work to a minimum without ever mixing two brands' rates.
+
+### 2.41 Regular
+"Regular" is one special brand covering every product family. It has no owner, no factories and no territory, and is shown as "Regular" plus the family's short name ("Regular TMT"). Everything set up before brands existed belongs to Regular.
+
+### 2.42 Publishing stays four taps
+**Decision (2026-10-17):**
+- **Pre-filled:** all his brands are pre-filled from yesterday.
+- **One move per family:** "move everything by ±₹X" is **one amount per product family**, never across families, because families may be priced in different units.
+- **Confirm:** the last tap.
+- **One notification:** one publish can cover many brands and families, and is one notification.
+
+### 2.43 Territory is per brand
+**Decision (2026-10-17):**
+- **Per brand:** a manufacturer allocates **a brand he owns, for a family that brand covers** (replacing "a family he sells").
+- **Type A:** the owner's factories' rate for that brand is not shown in that area; buyers are pointed to the distributor.
+- **Type B:** the factories' rate is shown, tagged with the authorised distributor. **Only that distributor's rate for that brand in that area is hidden;** his other brands are unaffected.
+- **Other sellers of the brand:** territory only affects the brand owner's factories and his appointed distributor. Other sellers of that brand keep showing their own rates.
+
+### 2.44 How brands are added without breaking what works
+**How (2026-10-17):**
+- **Transition:** while brands are built in, every existing function treats "no brand given" as **Regular**. So the existing saved checks keep passing unchanged throughout.
+- **Removing the shortcut:** in the final step it is removed, so no screen can ever save to the wrong brand by forgetting to name it. Every check is then updated to name its brand, and all must pass before the rate engine is built.
 
 ---
 
@@ -489,8 +552,8 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 | ~~Publishing requirements~~ | **Confirmed 2026-10-17, see 2.32:** no publish without area settings or while an area points to a switched-off chart, with a plain message saying what to fix. |
 | ~~"Close market now" with no family named~~ | **Confirmed 2026-10-17:** closes every open family the seller deals in. |
 | ~~No closing time set~~ | **Settled 2026-10-17, see 2.30:** a closing time is required before the first publish, pre-filled at 6:00 PM, and can't be cleared afterwards. |
-| Type B and "that brand's rate" (2026-10-17) | In a Type B area "the distributor does not publish that brand's rate there". But ALEE has no brands yet: a distributor's TMT rate is simply his TMT rate, not tied to any manufacturer. So ALEE cannot yet tell his rate for the manufacturer's brand apart from his rate for other goods. Undecided: should a Type B allocation hide the distributor's own rate for that family in that area entirely, or does ALEE need brands on products first? Must be settled before the rate engine. |
-| ~~Territory details~~ | **Confirmed 2026-10-17:** (1) a manufacturer can only allocate a family he himself sells; (2) the type is fixed once accepted (2.35); (3) "everywhere" cannot be allocated, so the widest area is a state. |
+| ~~Type B and "that brand's rate"~~ | **Settled 2026-10-17 by brands (2.37, 2.43):** brands are added before the rate engine. Type B hides only that distributor's rate for that brand in that area; his other brands are unaffected. |
+| ~~Territory details~~ | **Confirmed 2026-10-17:** (1) ~~a manufacturer can only allocate a family he himself sells~~ **updated 2026-10-17 (2.43): a manufacturer can only allocate a brand he owns, for a family that brand covers**; (2) the type is fixed once accepted (2.35); (3) "everywhere" cannot be allocated, so the widest area is a state. |
 | Public visibility of size differences and loading | Public for now; revisit. |
 | Angle and channel weights | Unverified and switched off. Confirm weights, whether 25×6 and 32×3 are traded, and the usual length (assumed 6m). |
 | Kushavati | Deferred. Add before any Goa talukas. |
