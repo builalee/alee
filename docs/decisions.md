@@ -172,6 +172,45 @@ Ratings, AI suggestions, market averages, open bidding, dashboards and similar f
 **Why:** A seller's charts should read in the unit he thinks and prices in. This replaces the earlier proposal that copies keep the template's unit (see open questions).
 **How:** conversion between per tonne and per kg happens in one place, `convert_per_unit`. If a figure cannot be converted exactly to 4 decimal places, the whole copy is refused rather than rounded (2.13).
 
+### 2.19 Area settings: what can be attached, and "everywhere" only by choice
+**Decision (2026-10-17):** Per product family, a seller can attach any of these to an area:
+- an area difference (may be zero or negative);
+- a size chart, for the whole family or for one grade;
+- a loading chart;
+- a discount chart;
+- a grade premium per grade;
+- a display unit;
+- an explicit exclusion ("not served");
+- grades not sold there.
+
+An area is a state, district, taluka or city, or **"everywhere"**, a level above every state for a seller who charges the same everywhere. "Everywhere" must be chosen explicitly. **No seller serves anywhere by default**: with no area settings, or with none covering a buyer's area, the buyer is not served.
+**Why:** Serving by default would show a seller's rate in places he cannot deliver (3.3). "Everywhere" exists so a flat-rate seller does not have to list every state, but it must be his choice, never something that happens because a field was left blank.
+
+### 2.20 Area settings are saved as versions, and are private
+**Decision (2026-10-17):**
+- **Versions:** a seller's whole area setup for one product family is saved as a version. Every save makes a new version; old versions are never changed, added to or deleted, not even by the database owner. Each version records its unit, and a publish will later record which version it used.
+- **Who can read them:** only the seller and admins. Not buyers, not other sellers, not visitors.
+
+**Why:**
+- Versions, as with charts (4.1, 2.12), so any past rate can be rebuilt exactly.
+- Privacy, because area settings reveal a seller's margins by area (1.1). Buyers only ever see their own final rate, through the rate engine.
+
+### 2.21 How area settings are looked up
+**Decision (2026-10-17):**
+- **Most specific first:** each setting is looked up separately: city, taluka, district, state, everywhere.
+- **Carry down:** a setting not set at a level carries down from the level above.
+- **Zero stops there:** zero is a real value and never carries down. "Not set" (stored empty) and zero (stored 0) can never be confused.
+- **Exclusions:** an exclusion beats a broader area. Excluding a district inside a served state means that district is not served, even when "everywhere" is chosen.
+- **Territory allocation** (not built yet) will be checked before any of this.
+
+**How:**
+- **One lookup:** `resolve_area_settings` is the one place this lookup happens, in a single query. The rate engine must use it, never repeat it.
+- **Mistyped settings:** a misspelt setting name is refused when saving, so a typo can never silently become "not set".
+- **Choices made in building it (see open questions):**
+  - Whether an area is served is decided by the most specific area the seller has mentioned for that buyer. So a city the seller names inside an excluded district is served.
+  - A grade's own size chart beats the family size chart *at the same area*. A more specific area's chart beats a broader one, whether family or grade.
+  - A grade is sold in an area unless set "not sold" there or above. The rate engine must also check the seller has selected the grade (2.17).
+
 ---
 
 ## 3. Regions
@@ -290,4 +329,6 @@ Ratings, AI suggestions, market averages, open bidding, dashboards and similar f
 | ~~A size with no figure in a size chart~~ | **Resolved 2026-10-17, see 2.17.** Sellers select the sizes they offer. A selected size with no figure is an error, never zero: publishing flags it and leaves that size out until fixed. |
 | Admins editing sellers' charts (proposed 2026-10-17) | Admins can create and change any seller's chart and copy templates for a seller, to match setting up the first sellers personally. Admin reads must also be logged (6.5) once the API layer exists. Confirm. |
 | ~~Template copies keep the template's unit (proposed 2026-10-17)~~ | **Superseded 2026-10-17 by 2.18:** copies are converted into the seller's unit. Converting a seller's existing charts when he later changes his unit (2.8) is still to be built. |
+| A served city inside an excluded district (2026-10-17) | Built as "most specific wins": if a seller excludes Kolhapur district but names Kolhapur city with its own settings, Kolhapur city is served. The alternative is that an exclusion covers everything inside it, and a city inside cannot be served. Confirm which. |
+| Grade size chart vs family size chart across levels (2026-10-17) | Built as: at the same area a grade's chart beats the family chart, and a more specific area beats a broader one. So a district family chart overrides a state grade chart. Confirm. |
 | Limits on chart figures (proposed 2026-10-17) | A flat discount cannot be negative. Loading and size figures may be any sign. Confirm whether loading should also be barred from going negative. |

@@ -36,6 +36,13 @@ erDiagram
     seller_profiles ||--o{ seller_sizes     : "offers size"
     sizes           ||--o{ seller_sizes     : "offered by"
     seller_profiles ||--o{ seller_offering_history : "change log"
+    seller_profiles ||--o{ area_setting_versions   : "area setup per family"
+    segments        ||--o{ area_setting_versions   : "for family"
+    area_setting_versions ||--o{ area_settings     : "one row per area"
+    regions         ||--o{ area_settings           : "area (empty = everywhere)"
+    charts          ||--o{ area_settings           : "size / loading / discount chart"
+    area_settings   ||--o{ area_grade_settings     : "per grade"
+    products        ||--o{ area_grade_settings     : "grade"
 ```
 
 In words:
@@ -47,8 +54,9 @@ In words:
 - **Regions** form a tree: state → district → taluka → city. Accounts and seller profiles each point to the region where they are.
 - **A chart** (size, loading or discount) belongs to one seller and one product family, or to ALEE as a template. Its figures live in **versions**. Each version holds per-size **figures** (size and loading charts) or one **discount** (discount charts).
 - **A seller chooses which grades and sizes he sells** (seller_grades, seller_sizes). Every change is logged in seller_offering_history.
+- **A seller's area settings** for each product family are saved as **versions**. Each version lists the areas he mentions, with their settings and per-grade settings.
 
-**Deleting a login deletes everything personal.** It removes the account, which removes that person's consents, seller profile, seller product families, grade and size choices with their history, and his charts with all their versions. This is the only way any of those rows can be deleted. Catalogue, region and template rows are never deleted at all, only switched off.
+**Deleting a login deletes everything personal.** It removes the account, which removes that person's consents, seller profile, seller product families, grade and size choices with their history, his charts with all their versions, and his area settings with all their versions. This is the only way any of those rows can be deleted. Catalogue, region and template rows are never deleted at all, only switched off.
 
 ---
 
@@ -296,6 +304,65 @@ One row per seller per grade (`product_id`) or per size (`size_id`).
 
 ---
 
+## Area: area settings
+
+What a seller attaches to areas, per product family: area difference, charts, grade premium, display unit, exclusions and grades not sold (CLAUDE.md sections 8 and 9). **Private: only the seller and admins can read them**, because they reveal his margins by area. Buyers will only ever see their own final rate, through the rate engine.
+
+**"Not set" and zero:** throughout these tables an empty field means **not set**, and the setting carries down from the area above. A value, **including 0**, means set here. Zero never carries down.
+
+### `area_setting_versions` — each saved area setup
+
+| Field | Meaning |
+|---|---|
+| `seller_id`, `segment_id` | Whose setup, for which product family. |
+| `version_number` | 1, 2, 3… per seller per family. A publish will record which version it used. |
+| `unit` | `tonne` or `kg`: the unit of every amount in this version (the seller's unit for the family when saved). |
+| `created_at` | When it was saved. |
+
+### `area_settings` — one row per area mentioned in a version
+An area the version doesn't mention has no row; everything carries down to it from above.
+
+| Field | Meaning |
+|---|---|
+| `version_id` | The version. |
+| `region_id` | A state, district, taluka or city. **Empty = "everywhere"**, the level above every state. It is only written when the seller explicitly chooses it. |
+| `is_excluded` | Not served here. An excluded area carries no other settings. |
+| `area_difference` | Exact rupees in the version's unit. Empty = not set; 0 = zero. May be negative. |
+| `size_chart_id`, `loading_chart_id`, `discount_chart_id` | The seller's own active charts of that type and family. Empty = not set. |
+| `display_unit` | `tonne`, `kg`, `piece` or `metre`. Empty = not set. |
+
+### `area_grade_settings` — per-grade settings within one area
+
+| Field | Meaning |
+|---|---|
+| `area_setting_id` | The area (within a version). |
+| `product_id` | The grade, from the same product family. |
+| `grade_premium` | Exact rupees. Empty = not set; 0 = no premium, set here. |
+| `size_chart_id` | A size chart just for this grade in this area. Empty = not set. |
+| `is_sold` | `false` = not sold here; `true` = sold here (overrides a broader "not sold"); empty = not set. If never set, the grade is sold. |
+
+### How area settings are written and looked up
+- **`save_area_settings(family, areas, seller)`** is the only way to save. It saves the whole setup as a new, complete version and returns its id.
+  - "Everywhere" must be given as `"everywhere": true`. An area with no region is refused.
+  - A misspelt setting name is refused, so a typo can never become "not set".
+  - An empty list means the seller serves nowhere.
+  - A seller saves his own; an admin may save for any seller.
+- **`resolve_area_settings(seller, family, area, grade, version)`** is the one place settings are looked up, in a single query. It uses the latest version unless one is given.
+  - **Order:** each setting is looked up separately, most specific first: city, taluka, district, state, everywhere. The first value actually set wins, so 0 is used and never skipped.
+  - **Served:** decided by the most specific area the seller mentioned. An exclusion there beats any broader area, including "everywhere". Nothing mentioned means not served.
+  - **Not served:** every setting comes back empty, so nothing is revealed.
+  - **Grade size chart:** at the same area it beats the family size chart.
+  - **Whose settings:** today only the seller and admins can look up his settings. The rate engine will call it for buyers and return only the final rate. Territory allocation (not built yet) will be checked before it.
+
+### Who can see and change
+- **Seller:** reads and saves only his own.
+- **Admins:** read and save any seller's.
+- **Everyone else** (other sellers, buyers, visitors): reads nothing and cannot look settings up.
+- **Never changed, never deleted:** no one can change, add to or delete a saved version, not even the database owner. A seller's settings go only when his whole account is deleted.
+- **Checks:** `tests/database/area_settings.sql`.
+
+---
+
 ## Shared machinery
 
 | Name | What it does |
@@ -320,7 +387,8 @@ One row per seller per grade (`product_id`) or per size (`size_id`).
 
 These appear in CLAUDE.md but have no tables yet:
 
-- grade premium and area-level settings (which chart applies where)
+- territory allocation (will be checked before area settings)
+- the rate engine itself (it will use `resolve_area_settings`, `size_chart_missing_figures` and `convert_per_unit`)
 - rates and publishing history (which will set `charts.in_use_since`)
 - subscriptions, enquiries, orders, bills
-- territory allocation, client book
+- client book
