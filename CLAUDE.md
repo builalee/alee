@@ -301,11 +301,11 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 - **Accounts** — phone OTP login, role chosen at signup. Every account can both buy and sell.
 - **Seller setup** — profile, banner, location, market close time, public or private setting. Size, loading and discount charts, templates, area-level settings.
 - **Publishing** — four taps maximum: open, Publish, enter rate (yesterday's pre-filled), confirm. The confirmation shows the **final rate for each area**, not the differences. Supports updating one segment or all segments at once.
-- **Market close** — after the seller's close time, his last rate still shows, tagged "market closed", until he publishes again.
+- **Market close** — after the seller's close time, or straight away if he presses "close market now", his last rate still shows, tagged "market closed" with the closing time, until he publishes again. Separately, "not quoting today" switches a family off with one tap until he switches it back on. Use `market_status`; never work this out in a screen.
 - **Search and public profile** — find sellers by product, area or name.
 - **Subscriptions** — subscribe to receive rates, alert preference chosen per subscription, approval for private profiles, blocking.
 - **Buyer feed** — subscribed sellers' current rates for the buyer's area, with history scoped to his area.
-- **Enquiries** — direct to a seller, optional buyer identity, forward to other sellers without retyping, private quotes.
+- **Enquiries** — direct to a seller, optional buyer identity, forward to other sellers without retyping, private quotes. Allowed after the seller's market has closed: such an enquiry is marked "received after close", and the buyer is told the seller will respond when the market opens.
 - **Orders** — buyer places order at the verbally agreed rate, seller accepts, seller adds actual weight and vehicle number on dispatch, bill attached to the order. Built last in Phase 1, after publish and subscribe work end to end.
 - **Territory allocation** — manufacturer assigns an area to a distributor.
 - **Retailer stores** — every outlet gets a shareable store profile.

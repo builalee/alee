@@ -43,6 +43,14 @@ erDiagram
     charts          ||--o{ area_settings           : "size / loading / discount chart"
     area_settings   ||--o{ area_grade_settings     : "per grade"
     products        ||--o{ area_grade_settings     : "grade"
+    seller_profiles ||--o{ publishes               : "publishes"
+    publishes       ||--o{ publish_items           : "one per family"
+    area_setting_versions ||--o{ publish_items     : "version used"
+    publish_items   ||--o{ publish_chart_versions  : "chart versions used"
+    chart_versions  ||--o{ publish_chart_versions  : "pinned"
+    seller_profiles ||--o{ seller_family_status    : "per family: latest, quoting, closed"
+    publishes       ||--o{ seller_family_status    : "latest publish"
+    seller_profiles ||--o{ seller_family_status_history : "switches and early closes"
 ```
 
 In words:
@@ -55,6 +63,7 @@ In words:
 - **A chart** (size, loading or discount) belongs to one seller and one product family, or to ALEE as a template. Its figures live in **versions**. Each version holds per-size **figures** (size and loading charts) or one **discount** (discount charts).
 - **A seller chooses which grades and sizes he sells** (seller_grades, seller_sizes). Every change is logged in seller_offering_history.
 - **A seller's area settings** for each product family are saved as **versions**. Each version lists the areas he mentions, with their settings and per-grade settings.
+- **A publish** is one action by a seller for one or more product families. Per family it records the basic rate and pins the area-settings version and chart versions used. **seller_family_status** points to each family's latest publish and says whether he is quoting, open or closed.
 
 **Deleting a login deletes everything personal.** It removes the account, which removes that person's consents, seller profile, seller product families, grade and size choices with their history, his charts with all their versions, and his area settings with all their versions. This is the only way any of those rows can be deleted. Catalogue, region and template rows are never deleted at all, only switched off.
 
@@ -371,6 +380,64 @@ An area the version doesn't mention has no row; everything carries down to it fr
 
 ---
 
+## Area: publishing
+
+### `publishes` — one per publish
+One action by a seller, covering one or more product families, so buyers get one notification.
+
+| Field | Meaning |
+|---|---|
+| `publish_number` | Strict order of publishes. |
+| `seller_id` | Whose rates. |
+| `published_at` | Set by the database at the moment of publishing; can never be back-dated. |
+| `published_by`, `by_admin` | The login that published: the seller, or an admin on his behalf during setup. |
+| `is_correction`, `corrects_publish_id` | Marks a publish that corrects an earlier one, optionally naming which (always the seller's own). The earlier one stays, unchanged. |
+
+### `publish_items` — one per product family in a publish
+
+| Field | Meaning |
+|---|---|
+| `segment_id` | The product family. |
+| `base_rate` | The seller's basic rate: exact rupees, above zero. **Private.** |
+| `unit` | `tonne` or `kg`: the seller's unit for the family at the time. |
+| `area_setting_version_id` | The area-settings version in force. |
+
+### `publish_chart_versions` — the exact chart versions used
+One row per chart that the area settings pointed to, pinned to the version that was latest at the moment of publishing. With the area-settings version, this lets any past rate be rebuilt exactly.
+
+### `seller_family_status` — the current state per seller and family
+**Public; holds no rate.**
+
+| Field | Meaning |
+|---|---|
+| `latest_publish_id`, `last_published_at` | The latest publish: the quick way to a seller's current rate. The rate engine works out the buyer's figure from it; final rates are not pre-calculated. |
+| `is_quoting` | `false` = "not quoting today": buyers see "not quoting" and no figure. Stays off until the seller switches it back on, even if he publishes. |
+| `closed_early_at` | The latest "close market now". It closes the family only if it came after the latest publish. |
+
+### `seller_family_status_history` — every switch and early close
+`stopped_quoting`, `resumed_quoting` or `closed_early`, with when it happened, who did it and whether it was an admin. Add-only; seen by the seller and admins.
+
+### How publishing works
+- **`publish_rates(items, is_correction, corrects, seller)`** is the only way to publish.
+  - **Each family must** be one the seller deals in, with area settings saved, and no switched-off chart in use. The rate must be above zero.
+  - **What it does:** pins the versions, marks the charts used ("used since"), and updates the status. A new publish reopens a closed market.
+  - **Who:** a seller publishes for himself; an admin may publish for any seller, recorded as such.
+- **Rebuilding a past rate:** `resolve_area_settings(..., version = the publish's area-settings version)` and `resolve_size_figures(..., publish)` give exactly what that publish used.
+- **`market_status(seller, family, at)`** is the one place open/closed is worked out. Anyone can call it. It answers `not_published`, `not_quoting`, `open` or `closed` (with the closing time), now or at any given moment.
+  - **Closed** means that, after the latest publish, either the seller's daily closing time (Indian time) has passed or he pressed "close market now".
+  - **Published after today's closing time:** it stays open until tomorrow's.
+  - **No closing time set:** only "close market now" closes.
+- **`set_quoting(family, on/off, seller)`** is the "not quoting today" switch. Switching to the state it's already in records nothing.
+- **`close_market_now(families, seller)`** closes the given families now; if none are named, every family. Only families currently open are closed and recorded.
+
+### Who can see and change
+- **Basic rates, publishes and pinned versions:** the seller and admins only. Other sellers, buyers and visitors get nothing, even asking the database directly. Buyers will only ever see their own final rate, through the rate engine.
+- **Quoting, open and closed:** anyone (`seller_family_status`, `market_status`). The switch and close history: the seller and admins.
+- **Never changed, never deleted:** no one can change, add to or delete a publish or its pinned versions, not even with the master key. They go only if the seller's whole account is deleted (see decisions, open questions).
+- **Checks:** `tests/database/publishes.sql`.
+
+---
+
 ## Shared machinery
 
 | Name | What it does |
@@ -381,6 +448,7 @@ An area the version doesn't mention has no row; everything carries down to it fr
 | `prevent_direct_delete()` | Blocks deletes on personal tables except when the whole account is being deleted. |
 | `prevent_update()` | Blocks every change to rows that must never change once saved (chart versions and their figures), for everyone. |
 | `convert_per_unit(amount, from, to)` | The one place an amount is converted between per tonne and per kg. Exact to 4 decimal places or refused. Piece and metre need a size's weight and belong to the rate engine. |
+| `market_status(seller, family, at)` | Open, closed, not quoting or not published, now or at any moment. Public. The market status engine. |
 | `rupees` | Every money amount. Exact, up to 4 decimal places. More precision is refused, never rounded. |
 | `percentage` | Exact, from 0 to 100. |
 | `unit` | The four units: `tonne`, `kg`, `piece`, `metre`. Pricing uses only tonne or kg; piece and metre are for display. |
@@ -398,6 +466,7 @@ These appear in CLAUDE.md but have no tables yet:
 - territory allocation (will be checked before area settings)
 - the rate engine itself (it will use `resolve_area_settings`, `resolve_size_figures` and `convert_per_unit`)
 - the area setup screen (it must show a plain coverage summary, e.g. "Kolhapur district: not served, except Kolhapur city")
-- rates and publishing history (which will set `charts.in_use_since`)
+- notifications on publish (one per publish)
+- enquiries (an enquiry after close must be marked "received after close", and the buyer told the seller will respond when the market opens)
 - subscriptions, enquiries, orders, bills
 - client book

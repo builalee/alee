@@ -272,6 +272,59 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 
 **How:** the lookups report "not set" as empty and an entered zero as 0. Saved checks prove both (`tests/database/size_figures.sql`). The rate engine must flag every empty value in the first table.
 
+### 2.25 One publish is one action, for one or more product families
+**Decision (2026-10-17):**
+- **One action:** a publish is one action by a seller. Updating several product families together is one publish, so buyers get **one** notification (1.6).
+- **Time:** set by the database at the moment of publishing, and can never be back-dated.
+- **Basic rate:** must be above zero, exact to 4 decimal places (2.13), in the seller's unit for that family.
+- **Who:** a seller publishes only for himself. An admin may publish on his behalf during setup, and the publish records that an admin did it, and which one.
+
+**Why:** One notification per publish is what keeps the app from being muted (1.6). A publish time anyone could set would make the record worthless in a dispute.
+
+### 2.26 A publish pins every version it used
+**Decision (2026-10-17):** For each product family, a publish records the basic rate, its unit, the area-settings version in force, and the exact version of every chart those settings point to. So any past rate can be rebuilt exactly as it was shown, after any later change.
+**How:**
+- **Rebuilding:** the same lookups the rate engine uses take an "as published in publish X" option (`resolve_size_figures(..., publish)`; `resolve_area_settings` with that publish's area-settings version). Past and present are worked out by the same code, so they can never disagree.
+- **Proven by a saved check:** a seller publishes ₹42,000, then changes his size chart and area settings. The publish still rebuilds to ₹42,000, Pune +200, 8mm +500.
+- **Charts in use:** each chart a publish uses gets its "used since" mark, so it can never be switched off without a replacement (2.14).
+
+### 2.27 A publish is never changed or removed; corrections are new publishes
+**Decision (2026-10-17):**
+- **Never altered:** nothing in a publish is ever changed or removed, not even with the master key.
+- **Fixing a wrong rate:** publish again. The seller can mark the new publish as a correction, optionally naming the publish it corrects, so buyers can be told the earlier figure was wrong. The earlier publish stays in history, unchanged.
+- **Own publishes only:** a correction can only name one of the seller's own publishes.
+
+**Why:** 4.2: a record that can be rewritten cannot settle a dispute.
+
+### 2.28 Current rates point to the latest publish; final rates are not pre-calculated
+**Decision (2026-10-17):** For each seller and product family, ALEE keeps a pointer to the latest publish. The rate engine works out each buyer's final figure from it when asked. Final rates for every area are not calculated in advance.
+**Why:** Pre-calculating every area would multiply storage (4.1) and create a second copy of the truth that could drift from what the engine would say.
+
+### 2.29 "Not quoting today" is a switch, not a publish
+**Decision (2026-10-17):**
+- **One tap, no publish:** a seller can switch a product family off with one tap, without publishing. Buyers then see "not quoting" and no figure.
+- **Stays off until switched on:** publishing while off does not switch it on.
+- **History:** every switch on or off is kept with its time and who made it.
+- **Separate from sizes:** this is temporary and separate from not selling a size or grade at all (2.17).
+
+**Why:** A seller who is out of stock for the day must be able to stop quoting at once. Leaving a stale rate up, or deleting his setup, would both be wrong.
+
+### 2.30 Market open and closed
+**Decision (2026-10-17):**
+- **When it closes:** a product family's rate counts as closed after the seller's daily closing time (Indian time), or immediately if he presses "close market now".
+- **Reopening:** publishing again reopens it.
+- **History:** every early close is kept with its time and who did it.
+- **After close:** the last published rate stays visible, marked closed, with the closing time.
+- **Public:** whether a seller is open, closed or not quoting can be seen by anyone. It reveals no rate.
+
+**How:**
+- **One function:** `market_status` is the one place this is worked out (the "market status" engine in CLAUDE.md section 20).
+- **Closing time:** the first daily closing time after the latest publish. So a rate published after today's closing time stays open until tomorrow's.
+- **Any moment:** it can be asked about any moment, which is how the daily close is tested.
+
+### 2.31 Enquiries after close are allowed (note for the enquiry step)
+**Decision (2026-10-17), nothing built yet:** a buyer may send an enquiry after a seller's market has closed. The enquiry must be marked **"received after close"**, and the buyer told the seller will respond when the market opens.
+
 ---
 
 ## 3. Regions
@@ -382,7 +435,10 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 
 | Question | Notes |
 |---|---|
-| Account deletion vs the trade record | Deleting an account currently removes everything. Once orders exist, the other party must keep his order history and bills. Likely answer: remove personal details, keep the trade record without the name. Consent proof may also need keeping for a period. Take legal advice before launch. |
+| Account deletion vs the trade record | Deleting an account currently removes everything, **including his publishes** (nothing else can remove them). Once orders exist, the other party must keep his order history and bills. Likely answer: remove personal details, keep the trade record without the name. Consent proof may also need keeping for a period. Take legal advice before launch. |
+| Publishing requirements (proposed 2026-10-17) | A family can be published only if the seller deals in it, has saved area settings for it, and none of the charts those settings use is switched off. Otherwise the publish is refused with a plain message. Confirm. |
+| "Close market now" with no family named (proposed 2026-10-17) | Closes every family the seller deals in that is open. A family that is already closed, not quoting or never published is left alone and nothing is recorded for it. Confirm. |
+| No closing time set (proposed 2026-10-17) | If a seller has not set a daily closing time, his rate never closes by itself; only "close market now" closes it. Alternative: require a closing time before the first publish. Confirm. |
 | Public visibility of size differences and loading | Public for now; revisit. |
 | Angle and channel weights | Unverified and switched off. Confirm weights, whether 25×6 and 32×3 are traded, and the usual length (assumed 6m). |
 | Kushavati | Deferred. Add before any Goa talukas. |
