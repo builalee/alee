@@ -51,6 +51,11 @@ erDiagram
     seller_profiles ||--o{ seller_family_status    : "per family: latest, quoting, closed"
     publishes       ||--o{ seller_family_status    : "latest publish"
     seller_profiles ||--o{ seller_family_status_history : "switches and early closes"
+    seller_profiles ||--o{ territory_allocations   : "manufacturer allocates"
+    seller_profiles ||--o{ territory_allocations   : "distributor holds"
+    segments        ||--o{ territory_allocations   : "for family"
+    regions         ||--o{ territory_allocations   : "area"
+    territory_allocations ||--o{ territory_allocation_events : "every step"
 ```
 
 In words:
@@ -63,6 +68,7 @@ In words:
 - **A chart** (size, loading or discount) belongs to one seller and one product family, or to ALEE as a template. Its figures live in **versions**. Each version holds per-size **figures** (size and loading charts) or one **discount** (discount charts).
 - **A seller chooses which grades and sizes he sells** (seller_grades, seller_sizes). Every change is logged in seller_offering_history.
 - **A seller's area settings** for each product family are saved as **versions**. Each version lists the areas he mentions, with their settings and per-grade settings.
+- **A territory allocation** is a manufacturer's area, for one family, offered to and accepted by a distributor. Every step is logged in territory_allocation_events.
 - **A publish** is one action by a seller for one or more product families. Per family it records the basic rate and pins the area-settings version and chart versions used. **seller_family_status** points to each family's latest publish and says whether he is quoting, open or closed.
 
 **Deleting a login deletes everything personal.** It removes the account, which removes that person's consents, seller profile, seller product families, grade and size choices with their history, his charts with all their versions, and his area settings with all their versions. This is the only way any of those rows can be deleted. Catalogue, region and template rows are never deleted at all, only switched off.
@@ -440,6 +446,47 @@ One row per chart that the area settings pointed to, pinned to the version that 
 
 ---
 
+## Area: territory allocation
+
+A manufacturer allocates an area, for one product family, to a distributor. It takes effect only once the distributor accepts. The rate engine checks territory **first**, before exclusions and area settings.
+
+### `territory_allocations` — one row per offer
+Each row is followed through to its end.
+
+| Field | Meaning |
+|---|---|
+| `manufacturer_id`, `distributor_id` | The two sides. Never the same seller. |
+| `segment_id` | The product family. |
+| `region_id` | The area: state, district, taluka or city. The closer area wins. |
+| `allocation_type` | `distributor_prices` (Type A): the manufacturer's rate isn't shown there; buyers are pointed to the distributor, who publishes his own rates. `manufacturer_prices` (Type B): the manufacturer's rate is shown, tagged "Authorised distributor for [area]: [distributor]"; enquiries from there go to the distributor. Can change only while it's an offer. |
+| `status` | `offered` (no effect yet) → `active` (accepted, in effect), `declined` (never took effect), or `withdrawn` (the manufacturer took the offer back). `active` → `ended` (by either side). It only moves forward; finished allocations are never revived. |
+| `offered_at`, `accepted_at`, `closed_at` | When it was offered, accepted, and finished. |
+
+- **One open allocation** (offered or active) per manufacturer, family and area: a second distributor can't be given the same area and family. Different families can go to different distributors.
+- **Fixed once offered:** the manufacturer, distributor, family, area and offer time never change, not even with the master key. To change them, offer a new allocation.
+
+### `territory_allocation_events` — every step, kept forever
+`offered`, `type_changed`, `accepted`, `declined`, `withdrawn` or `ended`, with the type at that moment, when, who did it, and whether it was an admin. Nobody can change or delete it.
+
+### How territory is changed and looked up
+These are the only ways to change an allocation:
+- **`offer_territory(distributor, family, area, type, manufacturer)`:** the manufacturer offers (an admin may offer for him). He must sell the family himself. Refusals are in plain words, e.g. "Satara TMT Bars is already offered to or held by Bala Traders. End that first."
+- **`change_territory_type(allocation, type)`:** the manufacturer changes the type, only while it's an offer.
+- **`respond_to_territory(allocation, accept)`:** the distributor accepts or declines.
+- **`end_territory(allocation)`:** either side ends an active allocation; the manufacturer can withdraw an offer. The manufacturer's own rate then shows again there, if he serves it.
+
+**`resolve_territory(manufacturer, family, buyer's area)`** is the one lookup the rate engine uses.
+- **Single query:** it returns the allocation in effect closest to the buyer (to whom, which type, for which area), or nothing.
+- **Public, and no rates:** anyone can call it, and it never returns a rate.
+
+### Who can see and change
+- **Allocations in effect:** anyone, because buyers will see the tags and be pointed to distributors.
+- **Offers, declines, withdrawals, endings and the history:** only the manufacturer, the distributor and admins.
+- **No rates anywhere:** nothing here holds a rate, amount or margin. The manufacturer can't read a distributor's publishes, rates, area settings or charts by any route; the saved checks try each one.
+- **Checks:** `tests/database/territory.sql`.
+
+---
+
 ## Shared machinery
 
 | Name | What it does |
@@ -450,6 +497,7 @@ One row per chart that the area settings pointed to, pinned to the version that 
 | `prevent_direct_delete()` | Blocks deletes on personal tables except when the whole account is being deleted. |
 | `prevent_update()` | Blocks every change to rows that must never change once saved (chart versions and their figures), for everyone. |
 | `convert_per_unit(amount, from, to)` | The one place an amount is converted between per tonne and per kg. Exact to 4 decimal places or refused. Piece and metre need a size's weight and belong to the rate engine. |
+| `resolve_territory(manufacturer, family, area)` | The territory allocation in effect closest to a buyer, if any. Public; no rates. The rate engine checks it first. |
 | `market_status(seller, family, at)` | Open, closed, not quoting or not published, now or at any moment. Public. The market status engine. |
 | `rupees` | Every money amount. Exact, up to 4 decimal places. More precision is refused, never rounded. |
 | `percentage` | Exact, from 0 to 100. |
@@ -465,10 +513,9 @@ One row per chart that the area settings pointed to, pinned to the version that 
 
 These appear in CLAUDE.md but have no tables yet:
 
-- territory allocation (will be checked before area settings)
 - the rate engine itself (it will use `resolve_area_settings`, `resolve_size_figures` and `convert_per_unit`)
 - the area setup screen (it must show a plain coverage summary, e.g. "Kolhapur district: not served, except Kolhapur city")
 - notifications on publish (one per publish)
-- enquiries (an enquiry after close must be marked "received after close", and the buyer told the seller will respond when the market opens)
+- enquiries (an enquiry after close must be marked "received after close", and the buyer told the seller will respond when the market opens; an enquiry from a Type B territory area goes to the authorised distributor)
 - subscriptions, enquiries, orders, bills
 - client book

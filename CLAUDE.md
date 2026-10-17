@@ -153,7 +153,11 @@ final rate = base rate + grade premium + size difference + loading + area differ
 **Discount is shown to the buyer as a separate line beneath the rate**, e.g. `₹40,300 — less ₹500/tonne`. All other components are combined: the buyer sees only his final figure, never the base, the grade premium or the individual differences.
 
 ### Precedence
-1. **Territory allocation** — if the area is allocated to a distributor, the manufacturer's rate is not shown there; the buyer is pointed to the distributor.
+1. **Territory allocation** — checked first, with `resolve_territory`. An allocation counts only once the distributor has accepted it, and the closest allocated area to the buyer wins (Karad taluka beats Satara district). Two types, chosen by the manufacturer:
+   - **Type A, distributor sets the price (`distributor_prices`):** the manufacturer's rate is not shown there; the buyer is pointed to the distributor, who publishes his own rates.
+   - **Type B, manufacturer sets the price (`manufacturer_prices`):** the buyer sees the manufacturer's own rate, worked out as normal below, tagged "Authorised distributor for [area]: [distributor]". The distributor does not publish that brand's rate there. Enquiries from that area go to the distributor.
+
+   No allocation in effect: continue below with the manufacturer's own settings.
 2. **Explicit exclusion** — the seller has marked this area as not served.
 3. **Area resolution** — most specific first: city → taluka → district → state. First match wins.
 4. **No match** — the seller does not serve this buyer.
@@ -236,7 +240,11 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 
 - A seller's profile is **public or private**, his choice. Public: subscribers see rates immediately. Private: he approves each subscription request.
 - A seller can **remove or block** any subscriber.
-- Manufacturers see territory **coverage only** — never a distributor's rates or margin.
+- **Territory allocation:**
+  - **The manufacturer** sees **coverage only** for his own allocations: which distributor covers which area, for which family, and of which type. Never a distributor's rates or margin, by any route.
+  - **The distributor** sees allocations offered to him or held by him.
+  - **Everyone** can see that an allocation is in effect, because buyers see "Authorised distributor" tags and are pointed to distributors. Offers, declines and history stay between the two sides and admins.
+  - **Who acts:** only the manufacturer offers or changes an offer. Only the distributor accepts or declines. Either side can end it. Admins can do any, recorded as admin.
 - Sellers see subscriber name and city.
 - Enquiries: buyer identity is optional. If hidden, the seller sees area, buyer tier and activity level. A seller's quote is visible only to that buyer — never to other sellers.
 - Contact details and rates are hidden on a public profile until subscribed.
@@ -292,7 +300,7 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 - **Trade discount** — an upfront discount, flat per the seller's unit for that product family (tonne or kg) or a percentage, shown on the invoice.
 - **Taluka** — the administrative level between district and city; the level freight is typically priced at.
 - **Market close** — the seller's daily closing time; after it, his last rate shows tagged "market closed".
-- **Territory allocation** — a manufacturer assigning an area to a distributor, who then publishes his own rates there.
+- **Territory allocation** — a manufacturer allocating an area, for one product family, to a distributor, who must accept. Type A: the distributor sets and publishes the price there. Type B: the manufacturer's own rate is shown there, tagged with the authorised distributor.
 
 ---
 
@@ -307,7 +315,7 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 - **Buyer feed** — subscribed sellers' current rates for the buyer's area, with history scoped to his area.
 - **Enquiries** — direct to a seller, optional buyer identity, forward to other sellers without retyping, private quotes. Allowed after the seller's market has closed: such an enquiry is marked "received after close", and the buyer is told the seller will respond when the market opens.
 - **Orders** — buyer places order at the verbally agreed rate, seller accepts, seller adds actual weight and vehicle number on dispatch, bill attached to the order. Built last in Phase 1, after publish and subscribe work end to end.
-- **Territory allocation** — manufacturer assigns an area to a distributor.
+- **Territory allocation** — manufacturer offers an area, per product family, to a distributor, who accepts or declines; Type A (distributor sets the price) or Type B (manufacturer sets the price, "authorised distributor" tag); either side can end it.
 - **Retailer stores** — every outlet gets a shareable store profile.
 - **Supplier prompt** — when a seller publishes, his subscribed retailers who also sell are prompted to update their own rates.
 - **Client book** — contact import, name, phone, category, one or two tags, a note.
@@ -357,7 +365,10 @@ Each engine is built once, tested thoroughly, and used everywhere. Screens never
 - Exact city match
 - Fall back to taluka, then district, then state
 - Explicit exclusion overrides a broader served area
-- Territory allocation suppresses the manufacturer's rate
+- Territory allocation Type A suppresses the manufacturer's rate and points the buyer to the distributor
+- Territory allocation Type B shows the manufacturer's rate, tagged "Authorised distributor for [area]: [distributor]"
+- A territory offer not yet accepted, declined, withdrawn or ended has no effect: the manufacturer's own settings decide
+- The closer allocated area wins: Satara district to one distributor, Karad taluka to another, a Karad buyer belongs to the second
 - A difference of ₹0 is used, not skipped
 - A grade or size the seller has not selected is not offered
 - A selected size with no size-chart figure is left out and flagged, never quoted at zero

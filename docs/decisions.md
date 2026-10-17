@@ -66,6 +66,7 @@ The developers disappeared and no code survived. Many decisions below exist spec
 ### 1.12 Territory allocation shows coverage only
 **Decision:** A manufacturer can hand an area to a distributor. He sees that the area is covered, never the distributor's rates. A buyer searching the manufacturer is pointed to the distributor.
 **Why:** The distributor's margin is his own business. Without this guarantee he will not accept the arrangement.
+*(Extended 2026-10-17 by 2.33 to 2.36: this describes Type A, "distributor sets the price". There is also Type B, "manufacturer sets the price", where buyers see the manufacturer's rate tagged with the authorised distributor. Coverage-only still holds for both: the manufacturer never sees the distributor's rates or margin.)*
 
 ### 1.13 Orders are in Phase 1, kept minimal
 **Decision:** The buyer places an order at the rate agreed on the phone, the seller accepts, and on dispatch the seller adds actual weight and vehicle number. A bill can be attached.
@@ -343,6 +344,36 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 **Why:** A seller who is stopped must be able to fix the problem in one step. A vague error at the moment of publishing is exactly what made the earlier version feel harder than WhatsApp. The wording is checked word for word by the saved checks.
 **For later:** these messages are the first candidates for the single user-facing text file (CLAUDE.md section 11), so they can be translated into Marathi and Hindi.
 
+### 2.33 Territory allocation is an offer the distributor accepts
+**Decision (2026-10-17):**
+- **What it is:** a manufacturer allocates an area to a distributor, for one product family. The area can be any level: state, district, taluka or city.
+- **Offer first:** it is only an offer until the distributor accepts. Until then it has no effect. He can also decline.
+- **One distributor per area, per family, per manufacturer:** while one distributor holds an area, or has an open offer for it, no other distributor can be given it. Different families can go to different distributors: Satara TMT to one, Satara angles to another.
+- **Who does what:** only the manufacturer offers. Only the distributor accepts or declines. Either side can end it. Admins can do any of these, and it is recorded that an admin did.
+
+**Why:** A distributor takes on obligations in his area. An allocation he never agreed to would point buyers at someone who isn't expecting them.
+
+### 2.34 The closer area wins, and the rate engine checks territory first
+**Decision (2026-10-17):** if Satara district is allocated to one distributor and Karad taluka to another, a Karad buyer belongs to the second. The rate engine checks territory before exclusions and area settings (CLAUDE.md section 8).
+**How:** `resolve_territory(manufacturer, family, buyer's area)` is the one lookup. It returns the allocation in effect closest to the buyer: to whom, which type, and for which area. It never returns a rate.
+
+### 2.35 Two types: who sets the price
+**Decision (2026-10-17), chosen by the manufacturer when allocating:**
+- **Type A, "distributor sets the price" (`distributor_prices`):** in that area the manufacturer's rate is not shown. Buyers are pointed to the distributor, who publishes his own rates.
+- **Type B, "manufacturer sets the price" (`manufacturer_prices`):** how brands like Tata or Apollo work. Buyers in that area see the manufacturer's own rate, tagged **"Authorised distributor for [area]: [distributor]"**. The distributor does not publish that brand's rate there.
+  - **For the enquiry step (nothing built yet):** enquiries from a Type B area go to the distributor.
+
+**Changing the type:** the manufacturer may change it while it is still an offer. Once accepted, the type is fixed; to change it, end the allocation and offer a new one, so the distributor always agrees to the arrangement in force.
+
+### 2.36 Ending, history, and who sees what
+**Decision (2026-10-17):**
+- **Ending:** either side can end an allocation. The manufacturer's own rate then shows again in that area, if he serves it. Before it is accepted, the manufacturer can withdraw an offer.
+- **Nothing is deleted:** every offer, type change, acceptance, decline, withdrawal and ending is kept with its time and who did it. An ended or declined allocation can never be revived. Its manufacturer, distributor, family or area can never be changed, not even with the master key. To change any of them, offer a new allocation.
+- **Who sees what:**
+  - **The manufacturer** sees his own allocations: who covers which area. He never sees anything about the distributor's rates or margin; the saved checks try every route.
+  - **The distributor** sees allocations offered to him or held by him.
+  - **Everyone:** that an allocation is in effect is public, because buyers will see "authorised distributor" tags and be pointed to distributors. Offers, declines and history stay between the two sides and admins.
+
 
 ---
 
@@ -458,6 +489,8 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 | ~~Publishing requirements~~ | **Confirmed 2026-10-17, see 2.32:** no publish without area settings or while an area points to a switched-off chart, with a plain message saying what to fix. |
 | ~~"Close market now" with no family named~~ | **Confirmed 2026-10-17:** closes every open family the seller deals in. |
 | ~~No closing time set~~ | **Settled 2026-10-17, see 2.30:** a closing time is required before the first publish, pre-filled at 6:00 PM, and can't be cleared afterwards. |
+| Type B and "that brand's rate" (2026-10-17) | In a Type B area "the distributor does not publish that brand's rate there". But ALEE has no brands yet: a distributor's TMT rate is simply his TMT rate, not tied to any manufacturer. So ALEE cannot yet tell his rate for the manufacturer's brand apart from his rate for other goods. Undecided: should a Type B allocation hide the distributor's own rate for that family in that area entirely, or does ALEE need brands on products first? Must be settled before the rate engine. |
+| ~~Territory details~~ | **Confirmed 2026-10-17:** (1) a manufacturer can only allocate a family he himself sells; (2) the type is fixed once accepted (2.35); (3) "everywhere" cannot be allocated, so the widest area is a state. |
 | Public visibility of size differences and loading | Public for now; revisit. |
 | Angle and channel weights | Unverified and switched off. Confirm weights, whether 25×6 and 32×3 are traded, and the usual length (assumed 6m). |
 | Kushavati | Deferred. Add before any Goa talukas. |
