@@ -39,6 +39,9 @@ insert into seller_brands (seller_id, brand_id, segment_id)
 select '00000000-0000-0000-0000-0000000000a1', b.id, s.id from brands b, segments s
  where b.name in ('Check Tiscon', 'Check Rods') and s.name = 'TMT Bars';
 
+-- Test sellers sell Regular in each family they deal in.
+select pg_temp.sell_regular();
+
 create temp table k as
 select (select id from segments where name = 'TMT Bars') as tmt,
        (select id from brands where is_regular) as regular,
@@ -67,7 +70,7 @@ select save_area_settings((select tmt from k), jsonb_build_array(
   jsonb_build_object('region_id', (select mh from k), 'area_difference', 200, 'size_chart_id', (select id from charts where name = 'S sizes'),
     'grades', jsonb_build_array(jsonb_build_object('product_id', (select fe550d from k), 'premium', 300))),
   jsonb_build_object('region_id', (select pune from k), 'area_difference', 0),
-  jsonb_build_object('region_id', (select satara from k), 'display_unit', 'kg')));
+  jsonb_build_object('region_id', (select satara from k), 'display_unit', 'kg')), null, (select id from brands where is_regular));
 
 -- One line describing a brand's setup.
 create function pg_temp.setup_of(p_brand uuid) returns text language sql as $$
@@ -107,7 +110,7 @@ select pg_temp.expect_value('The chart is shared, not duplicated', '1 chart',
 
 select pg_temp.expect_value('S changes Regular: Maharashtra +250, drops 10mm', 'changed',
   $q$select case when save_area_settings((select tmt from k), jsonb_build_array(
-       jsonb_build_object('region_id', (select mh from k), 'area_difference', 250))) is not null
+       jsonb_build_object('region_id', (select mh from k), 'area_difference', 250)), null, (select id from brands where is_regular)) is not null
      and select_all_in_family((select tmt from k), 'sizes', false, null, (select regular from k)) >= 0
      then 'changed' end$q$);
 select pg_temp.expect_value('Tiscon is unchanged', 'grades: Fe550D | sizes: 8mm,10mm | Maharashtra 200 S sizes Fe550D+300, Pune 0, Satara NOT SET',

@@ -77,6 +77,9 @@ select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
 select decide_brand_claim(id, true) from brand_claims where brand_id = (select id from brands where name = 'Check Steel');
 select pg_temp.as_owner();
 
+-- Test sellers sell Regular in each family they deal in.
+select pg_temp.sell_regular();
+
 create temp table k as
 select (select id from segments where name = 'TMT Bars') as tmt,
        (select id from brands where name = 'Check Steel') as steel,
@@ -95,7 +98,7 @@ grant select on k to public;
 
 -- M serves all of Maharashtra for TMT.
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
-select save_area_settings((select tmt from k), jsonb_build_array(jsonb_build_object('region_id', (select mh from k), 'area_difference', 0)));
+select save_area_settings((select tmt from k), jsonb_build_array(jsonb_build_object('region_id', (select mh from k), 'area_difference', 0)), null, (select id from brands where is_regular));
 
 -- D1 has his own area settings, chart and a publish (his rates).
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000b2');
@@ -103,8 +106,8 @@ insert into charts (seller_id, segment_id, chart_type, name)
 values ('00000000-0000-0000-0000-0000000000b2', (select tmt from k), 'loading', 'D1 loading');
 select save_chart_version((select id from charts where name = 'D1 loading'), 'tonne', '[{"size_id": null, "amount": 180}]');
 select save_area_settings((select tmt from k), jsonb_build_array(jsonb_build_object('region_id', (select satara from k),
-  'area_difference', 150, 'loading_chart_id', (select id from charts where name = 'D1 loading'))));
-select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 44000)));
+  'area_difference', 150, 'loading_chart_id', (select id from charts where name = 'D1 loading'))), null, (select id from brands where is_regular));
+select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 44000, 'brand_id', (select id from brands where is_regular))));
 
 select pg_temp.as_owner();
 create temp table d1 as
@@ -302,16 +305,16 @@ select pg_temp.expect_value('M reads D1''s charts: nothing', '0',
   $q$select (select count(*) from charts where id = (select chart_id from d1))
           + (select count(*) from chart_versions where chart_id = (select chart_id from d1))$q$);
 select pg_temp.expect_refused('M looks up D1''s settings for Satara',
-  $q$select * from resolve_area_settings('00000000-0000-0000-0000-0000000000b2', (select tmt from k), (select satara from k))$q$);
+  $q$select * from resolve_area_settings('00000000-0000-0000-0000-0000000000b2', (select tmt from k), (select satara from k), null, null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_refused('M rebuilds D1''s published figures',
   $q$select * from resolve_size_figures('00000000-0000-0000-0000-0000000000b2', (select tmt from k), (select satara from k),
-                                       null, null, (select publish_id from d1))$q$);
+                                       null, null, (select publish_id from d1), (select id from brands where is_regular))$q$);
 select pg_temp.expect_value('The territory lookup returns who and which type, never a rate',
   'allocation_id, distributor_id, distributor_name, allocation_type, region_id, area_name',
   $q$select string_agg(parameter_name, ', ' order by ordinal_position) from information_schema.parameters
      where specific_name like 'resolve_territory%' and parameter_mode = 'OUT'$q$);
 select pg_temp.expect_value('D1''s public status shows no rate', 'open',
-  $q$select status from market_status('00000000-0000-0000-0000-0000000000b2', (select tmt from k))$q$);
+  $q$select status from market_status('00000000-0000-0000-0000-0000000000b2', (select tmt from k), null, (select id from brands where is_regular))$q$);
 
 -- Ending restores the manufacturer ---------------------------------------------------------
 
@@ -322,7 +325,7 @@ select pg_temp.expect_value('A Satara buyer belongs to nobody again', 'no alloca
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select pg_temp.expect_value('...and M serves Satara again with his own rate', 'served',
   $q$select case when is_served then 'served' else 'not served' end
-     from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select satara_city from k))$q$);
+     from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select satara_city from k), null, null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_value('Karad is unaffected (still D2)', 'Dev Distributors, manufacturer_prices, for Check Karad',
   $q$select pg_temp.who((select tmt from k), (select karad_city from k))$q$);
 select pg_temp.expect_value('M ends Karad', 'ended', $q$select end_territory((select id from t3))::text$q$);

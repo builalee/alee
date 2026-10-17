@@ -44,6 +44,9 @@ insert into sizes (segment_id, display_name, sort_order, weight_per_metre_kg, pi
                    weight_source, is_verified, is_active)
 select id, 'Check 40mm', 80, 9.865, 12, 'check', false, false from segments where name = 'TMT Bars';
 
+-- Test sellers sell Regular in each family they deal in.
+select pg_temp.sell_regular();
+
 create temp table ids as
 select (select id from segments where name = 'TMT Bars') as tmt,
        (select id from products where name = 'Fe500D') as fe500d,
@@ -73,24 +76,24 @@ select pg_temp.expect_value('Nothing is selected by default', '0 grades, 0 sizes
             (select count(*) from seller_sizes where seller_id = '00000000-0000-0000-0000-0000000000a1' and is_selected)
             || ' sizes'$q$);
 select pg_temp.expect_rows('A selects grade Fe500D', 1,
-  $q$insert into seller_grades (seller_id, product_id, is_selected)
-     values ('00000000-0000-0000-0000-0000000000a1', (select fe500d from ids), true)$q$);
+  $q$insert into seller_grades (seller_id, brand_id, product_id, is_selected)
+     values ('00000000-0000-0000-0000-0000000000a1', (select id from brands where is_regular), (select fe500d from ids), true)$q$);
 select pg_temp.expect_rows('A selects size 12mm', 1,
-  $q$insert into seller_sizes (seller_id, size_id, is_selected)
-     values ('00000000-0000-0000-0000-0000000000a1', (select s12 from ids), true)$q$);
+  $q$insert into seller_sizes (seller_id, brand_id, size_id, is_selected)
+     values ('00000000-0000-0000-0000-0000000000a1', (select id from brands where is_regular), (select s12 from ids), true)$q$);
 select pg_temp.expect_refused('A selects an angle grade (he does not deal in angles)',
-  $q$insert into seller_grades (seller_id, product_id, is_selected)
-     values ('00000000-0000-0000-0000-0000000000a1', (select angle_grade from ids), true)$q$);
+  $q$insert into seller_grades (seller_id, brand_id, product_id, is_selected)
+     values ('00000000-0000-0000-0000-0000000000a1', (select id from brands where is_regular), (select angle_grade from ids), true)$q$);
 select pg_temp.expect_refused('A selects a size not yet switched on in the catalogue',
-  $q$insert into seller_sizes (seller_id, size_id, is_selected)
-     values ('00000000-0000-0000-0000-0000000000a1', (select s40 from ids), true)$q$);
+  $q$insert into seller_sizes (seller_id, brand_id, size_id, is_selected)
+     values ('00000000-0000-0000-0000-0000000000a1', (select id from brands where is_regular), (select s40 from ids), true)$q$);
 
 select pg_temp.expect_value('Select all TMT grades selects every active grade not already chosen',
   (select (tmt_active_grades::int - 1)::text from ids),
-  $q$select select_all_in_family((select tmt from ids), 'grades')::text$q$);
+  $q$select select_all_in_family((select tmt from ids), 'grades', true, null, (select id from brands where is_regular))::text$q$);
 select pg_temp.expect_value('Select all TMT sizes selects every active size not already chosen',
   (select (tmt_active_sizes::int - 1)::text from ids),
-  $q$select select_all_in_family((select tmt from ids), 'sizes')::text$q$);
+  $q$select select_all_in_family((select tmt from ids), 'sizes', true, null, (select id from brands where is_regular))::text$q$);
 select pg_temp.expect_value('A now offers every active TMT grade and size',
   (select tmt_active_grades || ' grades, ' || tmt_active_sizes || ' sizes' from ids),
   $q$select (select count(*) from seller_grades where seller_id = '00000000-0000-0000-0000-0000000000a1' and is_selected)
@@ -98,7 +101,7 @@ select pg_temp.expect_value('A now offers every active TMT grade and size',
             (select count(*) from seller_sizes where seller_id = '00000000-0000-0000-0000-0000000000a1' and is_selected)
             || ' sizes'$q$);
 select pg_temp.expect_value('Select all again changes nothing', '0',
-  $q$select select_all_in_family((select tmt from ids), 'sizes')::text$q$);
+  $q$select select_all_in_family((select tmt from ids), 'sizes', true, null, (select id from brands where is_regular))::text$q$);
 
 select pg_temp.expect_rows('A unselects 32mm', 1,
   $q$update seller_sizes set is_selected = false
@@ -145,12 +148,12 @@ select pg_temp.as_user('00000000-0000-0000-0000-0000000000b2');
 select pg_temp.expect_rows('B unselects A''s sizes', 0,
   $q$update seller_sizes set is_selected = false where seller_id = '00000000-0000-0000-0000-0000000000a1'$q$);
 select pg_temp.expect_refused('B selects a size for A',
-  $q$insert into seller_sizes (seller_id, size_id, is_selected)
-     values ('00000000-0000-0000-0000-0000000000a1', (select s40 from ids), true)$q$);
+  $q$insert into seller_sizes (seller_id, brand_id, size_id, is_selected)
+     values ('00000000-0000-0000-0000-0000000000a1', (select id from brands where is_regular), (select s40 from ids), true)$q$);
 select pg_temp.expect_value('B runs "unselect all" on A''s sizes: nothing changes', '0',
-  $q$select select_all_in_family((select tmt from ids), 'sizes', false, '00000000-0000-0000-0000-0000000000a1')::text$q$);
+  $q$select select_all_in_family((select tmt from ids), 'sizes', false, '00000000-0000-0000-0000-0000000000a1', (select id from brands where is_regular))::text$q$);
 select pg_temp.expect_refused('B runs "select all" for A (would add rows for A)',
-  $q$select select_all_in_family((select tmt from ids), 'grades', true, '00000000-0000-0000-0000-0000000000a1')$q$);
+  $q$select select_all_in_family((select tmt from ids), 'grades', true, '00000000-0000-0000-0000-0000000000a1', (select id from brands where is_regular))$q$);
 select pg_temp.expect_value('A''s selected sizes are unchanged after B''s attempts',
   (select (tmt_active_sizes::int - 1)::text from ids),
   $q$select count(*)::text from seller_sizes where seller_id = '00000000-0000-0000-0000-0000000000a1' and is_selected$q$);
@@ -167,30 +170,30 @@ select pg_temp.expect_value('Visitor sees the sizes A offers',
   $q$select count(*)::text from seller_sizes where seller_id = '00000000-0000-0000-0000-0000000000a1'$q$);
 select pg_temp.expect_refused('Visitor reads selection history', $q$select * from seller_offering_history$q$);
 select pg_temp.expect_refused('Visitor selects a size for A',
-  $q$insert into seller_sizes (seller_id, size_id, is_selected)
-     values ('00000000-0000-0000-0000-0000000000a1', (select s40 from ids), true)$q$);
+  $q$insert into seller_sizes (seller_id, brand_id, size_id, is_selected)
+     values ('00000000-0000-0000-0000-0000000000a1', (select id from brands where is_regular), (select s40 from ids), true)$q$);
 select pg_temp.expect_refused('Visitor runs "select all"',
-  $q$select select_all_in_family((select tmt from ids), 'sizes', true, '00000000-0000-0000-0000-0000000000a1')$q$);
+  $q$select select_all_in_family((select tmt from ids), 'sizes', true, '00000000-0000-0000-0000-0000000000a1', (select id from brands where is_regular))$q$);
 
 -- Admin sets A up ---------------------------------------------------------------
 
 select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
 select pg_temp.expect_rows('Admin selects the new 40mm for A', 1,
-  $q$insert into seller_sizes (seller_id, size_id, is_selected)
-     values ('00000000-0000-0000-0000-0000000000a1', (select s40 from ids), true)$q$);
+  $q$insert into seller_sizes (seller_id, brand_id, size_id, is_selected)
+     values ('00000000-0000-0000-0000-0000000000a1', (select id from brands where is_regular), (select s40 from ids), true)$q$);
 select pg_temp.expect_value('History records the admin made that change', 'admin',
   $q$select case when changed_by = '00000000-0000-0000-0000-0000000000c3' then 'admin' else 'someone else' end
      from seller_offering_history
      where seller_id = '00000000-0000-0000-0000-0000000000a1' and size_id = (select s40 from ids)$q$);
 select pg_temp.expect_value('Admin unselects all of A''s TMT sizes', (select tmt_active_sizes from ids),
-  $q$select select_all_in_family((select tmt from ids), 'sizes', false, '00000000-0000-0000-0000-0000000000a1')::text$q$);
+  $q$select select_all_in_family((select tmt from ids), 'sizes', false, '00000000-0000-0000-0000-0000000000a1', (select id from brands where is_regular))::text$q$);
 select pg_temp.expect_value('Every TMT size A ever chose is still on record, none offered',
   (select (tmt_active_sizes::int + 1)::text || ' kept, 0 offered' from ids),
   $q$select count(*) || ' kept, ' || count(*) filter (where is_selected) || ' offered'
      from seller_sizes where seller_id = '00000000-0000-0000-0000-0000000000a1'$q$);
 select pg_temp.expect_value('Admin selects all TMT sizes for A again (now including 40mm)',
   (select (tmt_active_sizes::int + 1)::text from ids),
-  $q$select select_all_in_family((select tmt from ids), 'sizes', true, '00000000-0000-0000-0000-0000000000a1')::text$q$);
+  $q$select select_all_in_family((select tmt from ids), 'sizes', true, '00000000-0000-0000-0000-0000000000a1', (select id from brands where is_regular))::text$q$);
 
 -- Deleting a seller's login removes his choices and their history -------------
 

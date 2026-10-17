@@ -6,7 +6,8 @@
 -- now and open / closed per brand line; publishing one brand reopens and
 -- resumes only that brand; "close market now" with nothing named closes
 -- every open brand line; a brand's publish rebuilds exactly from its own
--- pinned chart versions; an item without a brand is Regular (transitional).
+-- pinned chart versions; an item, switch or status that names no brand is
+-- refused (Regular must be named too).
 --
 -- Test people (temporary logins, rolled back):
 --   S ...a1  seller, closes 6 pm. TMT: Regular, Check Tiscon (both set up),
@@ -31,6 +32,9 @@ select b.id, s.id from brands b, segments s
 insert into seller_brands (seller_id, brand_id, segment_id)
 select '00000000-0000-0000-0000-0000000000a1', b.id, s.id from brands b, segments s
  where b.name in ('Check Tiscon', 'Check Rods') and s.name = 'TMT Bars';
+
+-- Test sellers sell Regular in each family they deal in.
+select pg_temp.sell_regular();
 
 create temp table k as
 select (select id from segments where name = 'TMT Bars') as tmt,
@@ -58,9 +62,9 @@ select jsonb_build_array(jsonb_build_object('everywhere', true, 'area_difference
          'loading_chart_id', (select id from charts where name = 'S loading'))) as tiscon_tmt;
 grant select on setup to public;
 
-select save_area_settings((select tmt from k), (select regular_tmt from setup));
+select save_area_settings((select tmt from k), (select regular_tmt from setup), null, (select id from brands where is_regular));
 select save_area_settings((select tmt from k), (select tiscon_tmt from setup), null, (select tiscon from k));
-select save_area_settings((select channels from k), '[{"everywhere": true, "area_difference": 0}]');
+select save_area_settings((select channels from k), '[{"everywhere": true, "area_difference": 0}]', null, (select id from brands where is_regular));
 
 -- Shows each brand line's latest basic rate.
 create function pg_temp.latest() returns text language sql as $$
@@ -78,14 +82,14 @@ $$;
 
 select pg_temp.expect_value('S publishes Regular TMT, Check Tiscon TMT and Regular Channels in one action', 'published',
   $q$select case when publish_rates(jsonb_build_array(
-       jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41000),
+       jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41000, 'brand_id', (select id from brands where is_regular)),
        jsonb_build_object('segment_id', (select tmt from k), 'brand_id', (select tiscon from k), 'base_rate', 43000),
        jsonb_build_object('segment_id', (select channels from k), 'brand_id', (select regular from k), 'base_rate', 52000)))
      is not null then 'published' end$q$);
 select pg_temp.expect_value('It is one publish (one notification) with three brand lines', '1 publish, 3 items',
   $q$select count(distinct p.id) || ' publish, ' || count(*) || ' items'
      from publishes p join publish_items pi on pi.publish_id = p.id where p.seller_id = '00000000-0000-0000-0000-0000000000a1'$q$);
-select pg_temp.expect_value('Each item records its brand (no brand given = Regular)', 'Check Tiscon 43000, Regular Channels 52000, Regular TMT 41000',
+select pg_temp.expect_value('Each item records its brand', 'Check Tiscon 43000, Regular Channels 52000, Regular TMT 41000',
   $q$select pg_temp.latest()$q$);
 select pg_temp.expect_value('Each brand line pinned its own area settings and the shared chart',
   'Check Tiscon: area v1, S loading v1 | Regular TMT: area v1, S loading v1',
@@ -104,6 +108,13 @@ select pg_temp.expect_value('Latest per brand line: only Tiscon moved', 'Check T
   $q$select pg_temp.latest()$q$);
 
 -- Refusals name the brand ------------------------------------------------------------
+
+select pg_temp.expect_message('An item that names no brand', 'Choose which brand of TMT Bars you are publishing.',
+  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41000)))$q$);
+select pg_temp.expect_message('Not quoting without naming a brand', 'Name the brand (Regular is a brand too).',
+  $q$select set_quoting((select tmt from k), false)$q$);
+select pg_temp.expect_message('Market status without naming a brand', 'Name the brand (Regular is a brand too).',
+  $q$select * from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k))$q$);
 
 select pg_temp.expect_message('A brand with no area settings', 'Choose where you sell Check Rods TMT before publishing.',
   $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'brand_id', (select rods from k), 'base_rate', 1)))$q$);
@@ -124,7 +135,7 @@ select pg_temp.expect_message('A switched-off chart, on a branded line, names th
   'Check Tiscon TMT: Goa still uses ''S extra'', which you switched off. Choose a chart for Goa.',
   $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'brand_id', (select tiscon from k), 'base_rate', 1)))$q$);
 select pg_temp.expect_value('Regular TMT is not held up by Tiscon''s problem', 'published',
-  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41100)))
+  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41100, 'brand_id', (select id from brands where is_regular))))
      is not null then 'published' end$q$);
 select save_area_settings((select tmt from k), (select tiscon_tmt from setup), null, (select tiscon from k));
 
@@ -135,7 +146,7 @@ select pg_temp.expect_value('S stops quoting Check Tiscon TMT', 'false',
 select pg_temp.expect_value('Tiscon not quoting; Regular TMT open', 'not_quoting / open',
   $q$select pg_temp.status((select tmt from k), (select tiscon from k)) || ' / ' || pg_temp.status((select tmt from k), (select regular from k))$q$);
 select pg_temp.expect_value('Publishing Regular TMT does not switch Tiscon back on', 'published',
-  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41200)))
+  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41200, 'brand_id', (select id from brands where is_regular))))
      is not null then 'published' end$q$);
 select pg_temp.expect_value('Tiscon still not quoting', 'not_quoting', $q$select pg_temp.status((select tmt from k), (select tiscon from k))$q$);
 select pg_temp.expect_value('Publishing Tiscon switches Tiscon back on', 'published',
@@ -162,7 +173,7 @@ select pg_temp.expect_value('Everything is closed (Rods never published)', 'clos
             || ' / ' || pg_temp.status((select channels from k), (select regular from k))
             || ' / ' || pg_temp.status((select tmt from k), (select rods from k))$q$);
 select pg_temp.expect_value('Publishing Regular Channels reopens only Regular Channels', 'published',
-  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select channels from k), 'base_rate', 52100)))
+  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select channels from k), 'base_rate', 52100, 'brand_id', (select id from brands where is_regular))))
      is not null then 'published' end$q$);
 select pg_temp.expect_value('Channels open; TMT lines still closed', 'open / closed / closed',
   $q$select pg_temp.status((select channels from k), (select regular from k)) || ' / ' || pg_temp.status((select tmt from k), (select tiscon from k))

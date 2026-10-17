@@ -3,9 +3,8 @@
 -- Covers: two brands of one seller in one family keep separate area
 -- settings and version numbers; both can share one chart; each brand's
 -- lookups use its own settings and its own offered sizes; saving for a
--- brand he doesn't sell is refused in plain words; a save or lookup without
--- a brand means Regular (transitional, until brands step 11); publishing
--- uses the Regular line until step 6.
+-- brand he doesn't sell is refused in plain words; a save or lookup that
+-- names no brand is refused (Regular must be named too).
 -- Functions: save_area_settings, resolve_area_settings,
 -- resolve_size_figures, publish_rates.
 --
@@ -38,6 +37,9 @@ insert into seller_brands (seller_id, brand_id, segment_id)
 select '00000000-0000-0000-0000-0000000000a1', b.id, s.id from brands b, segments s
  where b.name = 'Check Tiscon' and s.name = 'TMT Bars';
 
+-- Test sellers sell Regular in each family they deal in.
+select pg_temp.sell_regular();
+
 create temp table k as
 select (select id from segments where name = 'TMT Bars') as tmt,
        (select id from brands where is_regular) as regular,
@@ -62,9 +64,9 @@ insert into seller_sizes (seller_id, brand_id, size_id, is_selected) values
 
 -- Separate settings per brand, sharing one chart --------------------------------------------
 
-select pg_temp.expect_value('S saves Regular TMT: Maharashtra +200, shared chart (no brand given = Regular)', 'saved',
+select pg_temp.expect_value('S saves Regular TMT: Maharashtra +200, shared chart (Regular named)', 'saved',
   $q$select case when save_area_settings((select tmt from k), jsonb_build_array(jsonb_build_object('region_id', (select mh from k),
-       'area_difference', 200, 'size_chart_id', (select id from charts where name = 'S shared sizes')))) is not null then 'saved' end$q$);
+       'area_difference', 200, 'size_chart_id', (select id from charts where name = 'S shared sizes'))), null, (select id from brands where is_regular)) is not null then 'saved' end$q$);
 select pg_temp.expect_value('S saves Check Tiscon TMT: Maharashtra +350, the same shared chart', 'saved',
   $q$select case when save_area_settings((select tmt from k), jsonb_build_array(jsonb_build_object('region_id', (select mh from k),
        'area_difference', 350, 'size_chart_id', (select id from charts where name = 'S shared sizes'))), null, (select tiscon from k))
@@ -78,18 +80,25 @@ select pg_temp.expect_value('Version numbers are counted per brand', 'Check Tisc
        select brand_display_name(brand_id, segment_id) || ': ' || string_agg('v' || version_number, ', ' order by version_number) as x
          from area_setting_versions where seller_id = '00000000-0000-0000-0000-0000000000a1' group by brand_id, segment_id) t$q$);
 select pg_temp.expect_value('Pune lookup per brand: each its own area difference', 'Regular 200, Tiscon 375',
-  $q$select 'Regular ' || (select area_difference from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k)))
+  $q$select 'Regular ' || (select area_difference from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k), null, null, (select id from brands where is_regular)))
          || ', Tiscon ' || (select area_difference from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k),
                                                                               (select pune from k), null, null, (select tiscon from k)))$q$);
 select pg_temp.expect_value('Both brands read the one shared chart; each offers its own sizes',
   'Regular: 8mm 500 | Tiscon: 10mm 400',
   $q$select 'Regular: ' || (select string_agg(display_name || ' ' || size_difference, ', ')
-              from resolve_size_figures('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k)) where is_offered)
+              from resolve_size_figures('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k), null, null, null, (select id from brands where is_regular)) where is_offered)
          || ' | Tiscon: ' || (select string_agg(display_name || ' ' || size_difference, ', ')
               from resolve_size_figures('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k),
                                         null, null, null, (select tiscon from k)) where is_offered)$q$);
 
 -- Refusals --------------------------------------------------------------------------------
+
+select pg_temp.expect_message('Saving without naming a brand', 'Name the brand (Regular is a brand too).',
+  $q$select save_area_settings((select tmt from k), '[{"everywhere": true}]')$q$);
+select pg_temp.expect_message('Looking up without naming a brand', 'Name the brand (Regular is a brand too).',
+  $q$select * from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k))$q$);
+select pg_temp.expect_message('Per-size lookup without naming a brand', 'Name the brand (Regular is a brand too).',
+  $q$select * from resolve_size_figures('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k))$q$);
 
 select pg_temp.expect_message('Saving for a brand he does not sell', 'Add Check Rods to the brands you sell first.',
   $q$select save_area_settings((select tmt from k), '[{"everywhere": true}]', null, (select rods from k))$q$);
@@ -103,11 +112,11 @@ select pg_temp.expect_refused('Another seller looks up S''s Tiscon settings',
 select pg_temp.expect_refused('Another seller saves S''s Tiscon settings',
   $q$select save_area_settings((select tmt from k), '[{"everywhere": true}]', '00000000-0000-0000-0000-0000000000a1', (select tiscon from k))$q$);
 
--- Publishing uses the Regular line until step 6 ---------------------------------------------
+-- Publishing a brand line pins that line's area settings -------------------------------------
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select pg_temp.expect_value('S publishes TMT 41000', 'published',
-  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41000)))
+  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41000, 'brand_id', (select id from brands where is_regular))))
      is not null then 'published' end$q$);
 select pg_temp.expect_value('The publish pinned the Regular line''s area settings, not Tiscon''s', 'Regular TMT v1',
   $q$select brand_display_name(av.brand_id, av.segment_id) || ' v' || av.version_number

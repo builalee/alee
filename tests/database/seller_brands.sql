@@ -1,7 +1,7 @@
 -- ============================================================
 -- Checks: brand lines (which brands each seller sells, per family).
--- Covers: adding a family gives a Regular line (transitional, until brands
--- step 11); a seller adds an approved brand for a family it covers; refused
+-- Covers: adding a family gives no brand line by itself (a seller sells
+-- only the brands he chooses, Regular included); a seller adds an approved brand for a family it covers; refused
 -- in plain words for unapproved brands, families the brand doesn't cover,
 -- and families he doesn't deal in; any seller can sell an unowned brand;
 -- only the seller (or an admin) adds or changes his lines; lines are public
@@ -45,14 +45,17 @@ grant select on k to public;
 select pg_temp.expect_value('Row Level Security is on', 'true',
   $q$select relrowsecurity::text from pg_class where oid = 'public.seller_brands'::regclass$q$);
 
--- Adding a family gives a Regular line (transitional) --------------------------------
+-- Adding a family gives no brand line by itself ------------------------------------
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select pg_temp.expect_rows('S adds TMT to his product families', 1,
   $q$insert into seller_segments (seller_id, segment_id) values ('00000000-0000-0000-0000-0000000000a1', (select tmt from k))$q$);
-select pg_temp.expect_value('He now sells Regular TMT', 'Regular TMT',
+select pg_temp.expect_value('Adding TMT gives him no brand line yet', '(nothing)',
   $q$select string_agg(brand_display_name(brand_id, segment_id), ', ')
      from seller_brands where seller_id = '00000000-0000-0000-0000-0000000000a1'$q$);
+select pg_temp.expect_rows('S chooses to sell Regular TMT', 1,
+  $q$insert into seller_brands (seller_id, brand_id, segment_id)
+     values ('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k))$q$);
 
 -- Adding brands -------------------------------------------------------------------------
 

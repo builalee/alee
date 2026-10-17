@@ -39,6 +39,9 @@ insert into seller_brands (seller_id, brand_id, segment_id)
 select '00000000-0000-0000-0000-0000000000a1', b.id, s.id from brands b, segments s
  where b.name in ('Check Tiscon', 'Check Rods') and s.name = 'TMT Bars';
 
+-- Test sellers sell Regular in each family they deal in.
+select pg_temp.sell_regular();
+
 create temp table k as
 select (select id from segments where name = 'TMT Bars') as tmt,
        (select id from segments where name = 'MS Channels') as channels,
@@ -49,14 +52,14 @@ select (select id from segments where name = 'TMT Bars') as tmt,
 grant select on k to public;
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
-select save_area_settings((select tmt from k), '[{"everywhere": true, "area_difference": 0}]');
+select save_area_settings((select tmt from k), '[{"everywhere": true, "area_difference": 0}]', null, (select id from brands where is_regular));
 select save_area_settings((select tmt from k), '[{"everywhere": true, "area_difference": 0}]', null, (select tiscon from k));
 select save_area_settings((select tmt from k), '[{"everywhere": true, "area_difference": 0}]', null, (select rods from k));
-select save_area_settings((select channels from k), '[{"everywhere": true, "area_difference": 0}]');
+select save_area_settings((select channels from k), '[{"everywhere": true, "area_difference": 0}]', null, (select id from brands where is_regular));
 select publish_rates(jsonb_build_array(
-  jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41000),
+  jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41000, 'brand_id', (select id from brands where is_regular)),
   jsonb_build_object('segment_id', (select tmt from k), 'brand_id', (select tiscon from k), 'base_rate', 43000),
-  jsonb_build_object('segment_id', (select channels from k), 'base_rate', 52)));
+  jsonb_build_object('segment_id', (select channels from k), 'base_rate', 52, 'brand_id', (select id from brands where is_regular))));
 
 create function pg_temp.latest() returns text language sql as $$
   select string_agg(line_name || ' ' || coalesce(last_base_rate::text, '-') || coalesce('/' || last_unit, ''), ', ' order by line_name)

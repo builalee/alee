@@ -121,6 +121,19 @@ begin
 end;
 $$;
 
+-- Gives every test seller (ids 00000000-0000-0000-0000-...) a Regular brand
+-- line for each product family he deals in. Adding a family does not do
+-- this by itself (a seller sells only the brands he chooses). Runs with
+-- owner rights, whoever is acting.
+create function pg_temp.sell_regular()
+returns void language sql security definer as $$
+  insert into public.seller_brands (seller_id, brand_id, segment_id)
+  select ss.seller_id, b.id, ss.segment_id
+    from public.seller_segments ss, public.brands b
+   where b.is_regular and ss.is_active and ss.seller_id::text like '00000000-0000-0000-0000-%'
+  on conflict do nothing;
+$$;
+
 -- Acting as different people. Settings are local to the transaction.
 
 create function pg_temp.as_user(uid uuid)

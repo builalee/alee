@@ -53,6 +53,9 @@ select x.id::uuid, s.id
   from (values ('00000000-0000-0000-0000-0000000000d4'), ('00000000-0000-0000-0000-0000000000b2')) as x (id)
  cross join (select id from segments where name = 'TMT Bars') s;
 
+-- Test sellers sell Regular in each family they deal in.
+select pg_temp.sell_regular();
+
 create temp table k as
 select (select id from segments where name = 'TMT Bars') as tmt,
        (select id from regions where level = 'state' and name = 'Maharashtra') as mh,
@@ -66,8 +69,8 @@ grant select on k to public;
 -- D builds his charts and setup the normal way.
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000d4');
 
-insert into seller_sizes (seller_id, size_id, is_selected)
-select '00000000-0000-0000-0000-0000000000d4', z.id, true
+insert into seller_sizes (seller_id, brand_id, size_id, is_selected)
+select '00000000-0000-0000-0000-0000000000d4', (select id from brands where is_regular), z.id, true
   from sizes z join segments s on s.id = z.segment_id
  where s.name = 'TMT Bars' and z.display_name in ('8mm', '10mm', '12mm', '16mm');
 
@@ -117,7 +120,7 @@ select jsonb_build_array(
 ) as v1;
 grant select on setup to public;
 
-select save_area_settings((select tmt from k), (select v1 from setup));
+select save_area_settings((select tmt from k), (select v1 from setup), null, (select id from brands where is_regular));
 
 -- One readable line per lookup: each size D offers, its figure and where it
 -- came from, or MISSING.
@@ -129,7 +132,7 @@ returns text language sql as $$
                 else r.size_difference || ' from ' || r.size_difference_from
                      || case when p_grade is null then '' else ' (' || r.size_difference_chart || ')' end
            end, ', ' order by z.sort_order), '(no sizes: not served)')
-    from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), p_region, p_grade, p_version) r
+    from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), p_region, p_grade, p_version, null, (select id from brands where is_regular)) r
     join sizes z on z.id = r.size_id
    where r.is_offered
 $$;
@@ -137,7 +140,7 @@ $$;
 create function pg_temp.loading_for(p_region uuid, p_size text)
 returns text language sql as $$
   select coalesce(r.loading::text, '-') || ' from ' || coalesce(r.loading_from, '-')
-    from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), p_region) r
+    from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), p_region, null, null, null, (select id from brands where is_regular)) r
    where r.display_name = p_size
 $$;
 
@@ -151,7 +154,7 @@ select pg_temp.expect_value('Maharashtra buyer elsewhere (Nashik): all from Maha
   $q$select pg_temp.sizes_for((select id from regions where level = 'district' and name = 'Nashik'))$q$);
 select pg_temp.expect_value('Figures are in the chart''s unit', 'tonne',
   $q$select string_agg(distinct size_difference_unit::text, ',')
-     from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select satara from k))
+     from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select satara from k), null, null, null, (select id from brands where is_regular))
      where size_difference is not null$q$);
 
 -- Zero and missing ----------------------------------------------------------------
@@ -162,12 +165,12 @@ select pg_temp.expect_value('Zero never carries down: Pune 8mm is 0 from Pune, n
 select pg_temp.expect_value('An offered size with no figure anywhere is missing, with no figure', '16mm: missing, figure empty',
   $q$select display_name || ': ' || case when is_missing then 'missing' else 'NOT missing' end
             || ', figure ' || coalesce(size_difference::text, 'empty')
-     from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select satara from k))
+     from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select satara from k), null, null, null, (select id from brands where is_regular))
      where display_name = '16mm'$q$);
 select pg_temp.expect_value('A size D does not offer is listed as not offered, not missing', '20mm: not offered, not missing',
   $q$select display_name || ': ' || case when is_offered then 'offered' else 'not offered' end
             || ', ' || case when is_missing then 'MISSING' else 'not missing' end
-     from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select satara from k))
+     from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select satara from k), null, null, null, (select id from brands where is_regular))
      where display_name = '20mm'$q$);
 select pg_temp.expect_value('An excluded area returns no sizes at all', '(no sizes: not served)',
   $q$select pg_temp.sizes_for((select kolhapur from k))$q$);
@@ -216,7 +219,7 @@ select pg_temp.expect_value('D saves version 2 without Satara''s size chart', 's
        jsonb_build_object('region_id', (select satara from k),
          'loading_chart_id', (select id from chart_ids where name = 'D Satara loading')),
        (select v1 from setup) -> 2,
-       (select v1 from setup) -> 3)) is not null then 'saved' end$q$);
+       (select v1 from setup) -> 3), null, (select id from brands where is_regular)) is not null then 'saved' end$q$);
 select pg_temp.expect_value('Now Satara 10mm and 12mm carry down from Maharashtra',
   '8mm 6500 from Maharashtra, 10mm 5500 from Maharashtra, 12mm 5500 from Maharashtra, 16mm MISSING',
   $q$select pg_temp.sizes_for((select satara from k))$q$);
@@ -229,20 +232,20 @@ select pg_temp.expect_value('Looking up version 1 still uses Satara''s chart',
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000b2');
 select pg_temp.expect_refused('Another seller looks up D''s size figures for Satara',
-  $q$select * from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select satara from k))$q$);
+  $q$select * from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select satara from k), null, null, null, (select id from brands where is_regular))$q$);
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000e5');
 select pg_temp.expect_refused('A buyer in Satara looks up D''s size figures',
-  $q$select * from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select satara from k))$q$);
+  $q$select * from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select satara from k), null, null, null, (select id from brands where is_regular))$q$);
 
 select pg_temp.as_visitor();
 select pg_temp.expect_refused('Visitor looks up D''s size figures',
-  $q$select * from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select satara from k))$q$);
+  $q$select * from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select satara from k), null, null, null, (select id from brands where is_regular))$q$);
 
 select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
 select pg_temp.expect_value('Admin looks up D''s Satara figures', '8mm 6500 from Maharashtra',
   $q$select display_name || ' ' || size_difference || ' from ' || size_difference_from
-     from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select satara from k))
+     from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select satara from k), null, null, null, (select id from brands where is_regular))
      where display_name = '8mm'$q$);
 
 -- Not set anywhere is reported empty, never as 0 ----------------------------------
@@ -255,29 +258,29 @@ select pg_temp.as_user('00000000-0000-0000-0000-0000000000d4');
 select pg_temp.expect_value('D saves version 3: Pune only, a size chart and nothing else', 'saved',
   $q$select case when save_area_settings((select tmt from k), jsonb_build_array(
        jsonb_build_object('region_id', (select pune from k),
-         'size_chart_id', (select id from chart_ids where name = 'D Pune sizes')))) is not null then 'saved' end$q$);
+         'size_chart_id', (select id from chart_ids where name = 'D Pune sizes'))), null, (select id from brands where is_regular)) is not null then 'saved' end$q$);
 select pg_temp.expect_value('Area difference set nowhere: reported empty, not 0', 'served, area difference EMPTY',
   $q$select case when is_served then 'served' else 'not served' end || ', area difference '
             || coalesce(area_difference::text, 'EMPTY')
-     from resolve_area_settings('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select pune from k))$q$);
+     from resolve_area_settings('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select pune from k), null, null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_value('Grade premium set nowhere: reported empty, not 0', 'premium EMPTY',
   $q$select 'premium ' || coalesce(grade_premium::text, 'EMPTY')
      from resolve_area_settings('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select pune from k),
-                                (select fe550d from k))$q$);
+                                (select fe550d from k), null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_value('Loading set nowhere: reported empty for every size, not 0', 'loading EMPTY for all sizes',
   $q$select case when bool_and(loading is null) then 'loading EMPTY for all sizes' else 'SOME SIZE HAS LOADING' end
-     from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select pune from k))$q$);
+     from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select pune from k), null, null, null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_value('Discount set nowhere: reported empty (means no discount)', 'discount EMPTY',
   $q$select 'discount ' || coalesce(discount_chart_id::text, 'EMPTY')
-     from resolve_area_settings('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select pune from k))$q$);
+     from resolve_area_settings('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select pune from k), null, null, (select id from brands where is_regular))$q$);
 
 select pg_temp.expect_value('D saves version 4: Pune with an explicit 0 area difference and 0 premium', 'saved',
   $q$select case when save_area_settings((select tmt from k), jsonb_build_array(
        jsonb_build_object('region_id', (select pune from k), 'area_difference', 0,
          'size_chart_id', (select id from chart_ids where name = 'D Pune sizes'),
-         'grades', jsonb_build_array(jsonb_build_object('product_id', (select fe550d from k), 'premium', 0))))) is not null
+         'grades', jsonb_build_array(jsonb_build_object('product_id', (select fe550d from k), 'premium', 0)))), null, (select id from brands where is_regular)) is not null
      then 'saved' end$q$);
 select pg_temp.expect_value('A zero the seller entered is reported as 0, not empty', 'area difference 0, premium 0',
   $q$select 'area difference ' || coalesce(area_difference::text, 'EMPTY') || ', premium ' || coalesce(grade_premium::text, 'EMPTY')
      from resolve_area_settings('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select pune from k),
-                                (select fe550d from k))$q$);
+                                (select fe550d from k), null, (select id from brands where is_regular))$q$);

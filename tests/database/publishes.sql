@@ -53,6 +53,9 @@ select x.id::uuid, s.id
 -- A product family A does not deal in.
 insert into segments (name, sort_order) values ('Check Pipes', 999);
 
+-- Test sellers sell Regular in each family they deal in.
+select pg_temp.sell_regular();
+
 create temp table k as
 select (select id from segments where name = 'TMT Bars') as tmt,
        (select id from segments where name = 'MS Channels') as channels,
@@ -91,13 +94,13 @@ select jsonb_build_array(jsonb_build_object('region_id', (select mh from k), 'ar
          'loading_chart_id', (select id from charts where name = 'A loading'))) as tmt_v2;
 grant select on setup to public;
 
-select save_area_settings((select tmt from k), (select tmt_v1 from setup));
-select save_area_settings((select channels from k), '[{"everywhere": true, "area_difference": 100}]');
+select save_area_settings((select tmt from k), (select tmt_v1 from setup), null, (select id from brands where is_regular));
+select save_area_settings((select channels from k), '[{"everywhere": true, "area_difference": 100}]', null, (select id from brands where is_regular));
 
 -- B has one publish of his own.
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000b2');
-select save_area_settings((select tmt from k), '[{"everywhere": true, "area_difference": 0}]');
-select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 40000)));
+select save_area_settings((select tmt from k), '[{"everywhere": true, "area_difference": 0}]', null, (select id from brands where is_regular));
+select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 40000, 'brand_id', (select id from brands where is_regular))));
 select pg_temp.as_owner();
 create temp table bpub as select id from publishes where seller_id = '00000000-0000-0000-0000-0000000000b2';
 grant select on bpub to public;
@@ -113,8 +116,9 @@ select '00000000-0000-0000-0000-0000000000f6', 'Farid Hardware', id, true
   from regions where level = 'district' and name = 'Pune';
 insert into seller_segments (seller_id, segment_id)
 values ('00000000-0000-0000-0000-0000000000f6', (select tmt from k));
+select pg_temp.sell_regular();
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000f6');
-select save_area_settings((select tmt from k), '[{"everywhere": true, "area_difference": 0}]');
+select save_area_settings((select tmt from k), '[{"everywhere": true, "area_difference": 0}]', null, (select id from brands where is_regular));
 
 -- Structure -------------------------------------------------------------------
 
@@ -137,11 +141,11 @@ select pg_temp.expect_value('The basic rate is an exact rupee amount', 'rupees',
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 
 select pg_temp.expect_value('Before any publish, TMT is "not published"', 'not_published',
-  $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k))$q$);
+  $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k), null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_value('A publishes TMT 41000 and Channels 52000 in one action', 'published',
   $q$select case when publish_rates(jsonb_build_array(
-       jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41000),
-       jsonb_build_object('segment_id', (select channels from k), 'base_rate', 52000))) is not null then 'published' end$q$);
+       jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41000, 'brand_id', (select id from brands where is_regular)),
+       jsonb_build_object('segment_id', (select channels from k), 'base_rate', 52000, 'brand_id', (select id from brands where is_regular)))) is not null then 'published' end$q$);
 select pg_temp.expect_value('It is one publish covering both families', '1 publish, 2 families',
   $q$select count(distinct p.id) || ' publish, ' || count(*) || ' families'
      from publishes p join publish_items pi on pi.publish_id = p.id
@@ -168,30 +172,30 @@ select pg_temp.expect_value('Charts the publish used are now marked "used since"
   $q$select string_agg(name || case when in_use_since is null then ' unused' else ' used' end, ', ' order by name)
      from charts where seller_id = '00000000-0000-0000-0000-0000000000a1'$q$);
 select pg_temp.expect_value('Right after publishing, TMT is open', 'open',
-  $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k))$q$);
+  $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k), null, (select id from brands where is_regular))$q$);
 
 -- What a publish refuses ----------------------------------------------------------
 
 select pg_temp.expect_refused('Basic rate of zero',
-  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 0)))$q$);
+  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 0, 'brand_id', (select id from brands where is_regular))))$q$);
 select pg_temp.expect_refused('Negative basic rate',
-  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', -5)))$q$);
+  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', -5, 'brand_id', (select id from brands where is_regular))))$q$);
 select pg_temp.expect_refused('Basic rate finer than 4 decimal places (refused, not rounded)',
-  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41000.12345)))$q$);
+  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41000.12345, 'brand_id', (select id from brands where is_regular))))$q$);
 select pg_temp.expect_message('No basic rate given', 'Enter your basic rate for TMT Bars.',
-  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k))))$q$);
+  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'brand_id', (select id from brands where is_regular))))$q$);
 select pg_temp.expect_message('A family A does not deal in',
   'You don''t sell Check Pipes yet. Add it to your product families before publishing.',
-  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select pipes from k), 'base_rate', 1000)))$q$);
+  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select pipes from k), 'base_rate', 1000, 'brand_id', (select id from brands where is_regular))))$q$);
 select pg_temp.expect_message('A family with no area settings yet: says what to fix',
   'Choose where you sell MS Angles before publishing.',
-  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select angles from k), 'base_rate', 1000)))$q$);
+  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select angles from k), 'base_rate', 1000, 'brand_id', (select id from brands where is_regular))))$q$);
 select pg_temp.expect_refused('The same family twice in one publish',
   $q$select publish_rates(jsonb_build_array(
-       jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41000),
-       jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 42000)))$q$);
+       jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41000, 'brand_id', (select id from brands where is_regular)),
+       jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 42000, 'brand_id', (select id from brands where is_regular))))$q$);
 select pg_temp.expect_refused('A misspelt field',
-  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rat', 41000)))$q$);
+  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rat', 41000, 'brand_id', (select id from brands where is_regular))))$q$);
 select pg_temp.expect_message('An empty publish', 'Choose at least one product family to publish.',
   $q$select publish_rates('[]')$q$);
 select pg_temp.expect_value('Refused publishes left nothing behind: still 1 publish', '1',
@@ -200,8 +204,8 @@ select pg_temp.expect_value('Refused publishes left nothing behind: still 1 publ
 -- Latest publish after several --------------------------------------------------
 
 select pg_temp.expect_value('A publishes TMT again: 41500, then 42000', 'published twice',
-  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41500))) is not null
-                  and publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 42000))) is not null
+  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41500, 'brand_id', (select id from brands where is_regular)))) is not null
+                  and publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 42000, 'brand_id', (select id from brands where is_regular)))) is not null
              then 'published twice' end$q$);
 select pg_temp.expect_value('Latest publish: TMT 42000 (the third); Channels still 52000 (the first)',
   'MS Channels 52000 (publish 1), TMT Bars 42000 (publish 3)',
@@ -231,14 +235,14 @@ returns text language sql as $$
       || 'Pune diff ' || coalesce(a.area_difference::text, '-')
       || ' | ' || (select string_agg(f.display_name || ' ' || coalesce(f.size_difference::text, '-'), ', ' order by f.display_name desc)
                      from resolve_size_figures('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k),
-                                               null, null, p_publish) f
+                                               null, null, p_publish, (select id from brands where is_regular)) f
                     where f.display_name in ('8mm', '10mm'))
       || ' | loading ' || (select f.loading::text
                      from resolve_size_figures('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k),
-                                               null, null, p_publish) f where f.display_name = '8mm')
+                                               null, null, p_publish, (select id from brands where is_regular)) f where f.display_name = '8mm')
     from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k), null,
            (select pi.area_setting_version_id from publish_items pi
-             where pi.publish_id = p_publish and pi.segment_id = (select tmt from k))) a
+             where pi.publish_id = p_publish and pi.segment_id = (select tmt from k)), (select id from brands where is_regular)) a
 $$;
 
 select pg_temp.expect_value('Publish 3 as published', 'base 42000 per tonne | Pune diff 200 | 8mm 500, 10mm 400 | loading 250',
@@ -247,7 +251,7 @@ select pg_temp.expect_value('A changes his size chart (8mm 900) and his area set
   $q$select case when save_chart_version((select id from charts where name = 'A sizes'), 'tonne', jsonb_build_array(
                          jsonb_build_object('size_id', (select s8 from k), 'amount', 900),
                          jsonb_build_object('size_id', (select s10 from k), 'amount', 400))) is not null
-                  and save_area_settings((select tmt from k), (select tmt_v2 from setup)) is not null
+                  and save_area_settings((select tmt from k), (select tmt_v2 from setup), null, (select id from brands where is_regular)) is not null
              then 'changed' end$q$);
 select pg_temp.expect_value('Today''s lookup shows the new figures', 'Pune diff 300 | 8mm 900, 10mm 400 | loading 250',
   $q$select pg_temp.rate_inputs(null)$q$);
@@ -258,24 +262,24 @@ select pg_temp.expect_value('Publish 3 still rebuilds exactly as it was', 'base 
 select pg_temp.expect_value('A adds a Goa row using "A extra sizes", then switches that chart off', 'done',
   $q$select case when save_area_settings((select tmt from k), (select tmt_v2 from setup) || jsonb_build_array(
                          jsonb_build_object('region_id', (select goa from k),
-                           'size_chart_id', (select id from charts where name = 'A extra sizes')))) is not null
+                           'size_chart_id', (select id from charts where name = 'A extra sizes'))), null, (select id from brands where is_regular)) is not null
              then 'done' end$q$);
 update charts set is_active = false where name = 'A extra sizes';
 select pg_temp.expect_message('Publishing while an area uses a switched-off chart: says which area and chart',
   'Goa still uses ''A extra sizes'', which you switched off. Choose a chart for Goa.',
-  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 42100)))$q$);
+  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 42100, 'brand_id', (select id from brands where is_regular))))$q$);
 
 select pg_temp.expect_value('A gives Fe550D its own chart in Satara, then switches that chart off', 'done',
   $q$select case when save_area_settings((select tmt from k), (select tmt_v2 from setup) || jsonb_build_array(
                          jsonb_build_object('region_id', (select satara from k),
                            'grades', jsonb_build_array(jsonb_build_object('product_id', (select fe550d from k),
-                             'size_chart_id', (select id from charts where name = 'A grade sizes')))))) is not null
+                             'size_chart_id', (select id from charts where name = 'A grade sizes'))))), null, (select id from brands where is_regular)) is not null
              then 'done' end$q$);
 update charts set is_active = false where name = 'A grade sizes';
 select pg_temp.expect_message('A grade''s switched-off chart: says which grade, area and chart',
   'Satara (Fe550D) still uses ''A grade sizes'', which you switched off. Choose a chart for Fe550D in Satara.',
-  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 42100)))$q$);
-select save_area_settings((select tmt from k), (select tmt_v2 from setup));
+  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 42100, 'brand_id', (select id from brands where is_regular))))$q$);
+select save_area_settings((select tmt from k), (select tmt_v2 from setup), null, (select id from brands where is_regular));
 
 -- A publish can never be changed or removed ---------------------------------------
 
@@ -310,7 +314,7 @@ select pg_temp.expect_value('Publish 3 is exactly as published', '42000',
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select pg_temp.expect_value('A publishes 41800 as a correction of publish 3', 'published',
-  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41800)),
+  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41800, 'brand_id', (select id from brands where is_regular))),
                                     true, (select id from p3)) is not null then 'published' end$q$);
 select pg_temp.expect_value('The correction is the latest, marked as correcting publish 3; publish 3 still says 42000',
   'latest 41800, correction of the 42000 publish',
@@ -321,7 +325,7 @@ select pg_temp.expect_value('The correction is the latest, marked as correcting 
      join publish_items pi on pi.publish_id = p.id and pi.segment_id = st.segment_id
      where st.seller_id = '00000000-0000-0000-0000-0000000000a1' and st.segment_id = (select tmt from k)$q$);
 select pg_temp.expect_refused('A marks a publish as correcting B''s publish',
-  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41800)),
+  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41800, 'brand_id', (select id from brands where is_regular))),
                           true, (select id from bpub))$q$);
 
 -- Nobody else reads a basic rate --------------------------------------------------
@@ -339,9 +343,9 @@ select pg_temp.expect_value('Another seller reads A''s pinned chart versions: no
   $q$select count(*)::text from publish_chart_versions where publish_id in (select id from apub)$q$);
 select pg_temp.expect_refused('Another seller rebuilds A''s publish',
   $q$select * from resolve_size_figures('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k),
-                                       null, null, (select id from p3))$q$);
+                                       null, null, (select id from p3), (select id from brands where is_regular))$q$);
 select pg_temp.expect_refused('Another seller publishes for A',
-  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 1)),
+  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 1, 'brand_id', (select id from brands where is_regular))),
                           false, null, '00000000-0000-0000-0000-0000000000a1')$q$);
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000e5');
@@ -358,13 +362,13 @@ select pg_temp.expect_refused('Visitor publishes', $q$select publish_rates('[]')
 select pg_temp.expect_value('Visitor can see A''s status (no rate in it)', '2 families',
   $q$select count(*) || ' families' from seller_family_status where seller_id = '00000000-0000-0000-0000-0000000000a1'$q$);
 select pg_temp.expect_value('Visitor can see whether A is open', 'open',
-  $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k))$q$);
+  $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k), null, (select id from brands where is_regular))$q$);
 
 -- Admin publishes on A's behalf -------------------------------------------------
 
 select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
 select pg_temp.expect_value('Admin publishes TMT 43000 for A', 'published',
-  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 43000)),
+  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 43000, 'brand_id', (select id from brands where is_regular))),
                                     false, null, '00000000-0000-0000-0000-0000000000a1') is not null then 'published' end$q$);
 select pg_temp.expect_value('It is recorded as done by an admin, and who', 'for A, by admin C',
   $q$select case when p.seller_id = '00000000-0000-0000-0000-0000000000a1' then 'for A' else 'for someone else' end || ', by '
@@ -379,19 +383,19 @@ select pg_temp.expect_value('Admin reads A''s basic rates', '6',
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select pg_temp.expect_value('A switches TMT off (not quoting)', 'false',
-  $q$select set_quoting((select tmt from k), false)::text$q$);
+  $q$select set_quoting((select tmt from k), false, null, (select id from brands where is_regular))::text$q$);
 select pg_temp.expect_value('TMT shows "not quoting", with no closing time', 'not_quoting, -',
-  $q$select status || ', ' || coalesce(closed_at::text, '-') from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k))$q$);
+  $q$select status || ', ' || coalesce(closed_at::text, '-') from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k), null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_value('Channels is unaffected', 'open',
-  $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select channels from k))$q$);
+  $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select channels from k), null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_value('Switching it off again records nothing new', 'false',
-  $q$select set_quoting((select tmt from k), false)::text$q$);
+  $q$select set_quoting((select tmt from k), false, null, (select id from brands where is_regular))::text$q$);
 select pg_temp.expect_value('A publishes TMT 43500 while not quoting', 'published',
-  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 43500)))
+  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 43500, 'brand_id', (select id from brands where is_regular))))
      is not null then 'published' end$q$);
 select pg_temp.expect_value('Publishing switched TMT back on: open, at the new rate', 'open, latest 43500',
   $q$select m.status || ', latest ' || pi.base_rate
-     from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k)) m,
+     from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k), null, (select id from brands where is_regular)) m,
           seller_family_status st join publish_items pi on pi.publish_id = st.latest_publish_id and pi.segment_id = st.segment_id
      where st.seller_id = '00000000-0000-0000-0000-0000000000a1' and st.segment_id = (select tmt from k)$q$);
 select pg_temp.expect_value('History: switched off, then back on by the publish, at the publish''s time',
@@ -403,27 +407,27 @@ select pg_temp.expect_value('History: switched off, then back on by the publish,
      from seller_family_status_history h
      where h.seller_id = '00000000-0000-0000-0000-0000000000a1' and h.segment_id = (select tmt from k)$q$);
 select pg_temp.expect_value('Switching on what is already on records nothing new', 'true, still 2 entries',
-  $q$select set_quoting((select tmt from k), true)::text || ', still ' ||
+  $q$select set_quoting((select tmt from k), true, null, (select id from brands where is_regular))::text || ', still ' ||
             (select count(*) from seller_family_status_history
               where seller_id = '00000000-0000-0000-0000-0000000000a1' and segment_id = (select tmt from k)) || ' entries'$q$);
 select pg_temp.expect_value('A switches TMT off and back on by hand', 'false, true',
-  $q$select set_quoting((select tmt from k), false)::text || ', ' || set_quoting((select tmt from k), true)::text$q$);
+  $q$select set_quoting((select tmt from k), false, null, (select id from brands where is_regular))::text || ', ' || set_quoting((select tmt from k), true, null, (select id from brands where is_regular))::text$q$);
 select pg_temp.expect_value('Full history kept in order', 'stopped_quoting, resumed_quoting, stopped_quoting, resumed_quoting',
   $q$select string_agg(event::text, ', ' order by happened_at) from seller_family_status_history
      where seller_id = '00000000-0000-0000-0000-0000000000a1' and segment_id = (select tmt from k)$q$);
 select pg_temp.expect_value('TMT is open', 'open',
-  $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k))$q$);
+  $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k), null, (select id from brands where is_regular))$q$);
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000b2');
 select pg_temp.expect_refused('Another seller switches A''s TMT off',
-  $q$select set_quoting((select tmt from k), false, '00000000-0000-0000-0000-0000000000a1')$q$);
+  $q$select set_quoting((select tmt from k), false, '00000000-0000-0000-0000-0000000000a1', (select id from brands where is_regular))$q$);
 select pg_temp.expect_refused('Another seller closes A''s market',
   $q$select close_market_now(null, '00000000-0000-0000-0000-0000000000a1')$q$);
 select pg_temp.expect_value('Another seller reads A''s switch history: nothing', '0',
   $q$select count(*)::text from seller_family_status_history where seller_id = '00000000-0000-0000-0000-0000000000a1'$q$);
 select pg_temp.as_visitor();
 select pg_temp.expect_refused('Visitor reads switch history', $q$select * from seller_family_status_history$q$);
-select pg_temp.expect_refused('Visitor switches quoting', $q$select set_quoting((select tmt from k), false, '00000000-0000-0000-0000-0000000000a1')$q$);
+select pg_temp.expect_refused('Visitor switches quoting', $q$select set_quoting((select tmt from k), false, '00000000-0000-0000-0000-0000000000a1', (select id from brands where is_regular))$q$);
 
 -- Close market now, and publishing reopens ----------------------------------------
 
@@ -432,16 +436,16 @@ select pg_temp.expect_value('A presses "close market now" for TMT', '1',
   $q$select close_market_now(array[(select tmt from k)])::text$q$);
 select pg_temp.expect_value('TMT is closed, with the closing time', 'closed, closing time recorded',
   $q$select status || ', ' || case when closed_at is not null then 'closing time recorded' else 'NO closing time' end
-     from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k))$q$);
+     from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k), null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_value('Channels is still open', 'open',
-  $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select channels from k))$q$);
+  $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select channels from k), null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_value('Closing an already closed market records nothing new', '0',
   $q$select close_market_now(array[(select tmt from k)])::text$q$);
 select pg_temp.expect_value('A publishes TMT again (43600)', 'published',
-  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 43600)))
+  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 43600, 'brand_id', (select id from brands where is_regular))))
      is not null then 'published' end$q$);
 select pg_temp.expect_value('Publishing again reopened TMT', 'open',
-  $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k))$q$);
+  $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k), null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_value('The early close stays in history after reopening', 'closed_early by A',
   $q$select string_agg(event::text || case when by_admin then ' by admin' else ' by A' end, ', ')
      from seller_family_status_history
@@ -475,10 +479,10 @@ update seller_profiles set market_close_time = ((select pub from ch) at time zon
 select pg_temp.as_visitor();
 select pg_temp.expect_value('Closing time 1 hour after the publish: open 30 minutes after publishing', 'open',
   $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select channels from k),
-                                      (select pub from ch) + interval '30 minutes')$q$);
+                                      (select pub from ch) + interval '30 minutes', (select id from brands where is_regular))$q$);
 select pg_temp.expect_value('Closed 2 hours after publishing, at exactly the closing time', 'closed at publish + 1 hour',
   $q$select status || case when closed_at = (select pub from ch) + interval '1 hour' then ' at publish + 1 hour' else ' at ' || closed_at end
-     from market_status('00000000-0000-0000-0000-0000000000a1', (select channels from k), (select pub from ch) + interval '2 hours')$q$);
+     from market_status('00000000-0000-0000-0000-0000000000a1', (select channels from k), (select pub from ch) + interval '2 hours', (select id from brands where is_regular))$q$);
 
 select pg_temp.as_owner();
 update seller_profiles set market_close_time = ((select pub from ch) at time zone 'Asia/Kolkata' - interval '1 hour')::time
@@ -486,20 +490,20 @@ update seller_profiles set market_close_time = ((select pub from ch) at time zon
 select pg_temp.as_visitor();
 select pg_temp.expect_value('Published after today''s closing time: open until tomorrow''s (22 hours later)', 'open',
   $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select channels from k),
-                                      (select pub from ch) + interval '22 hours')$q$);
+                                      (select pub from ch) + interval '22 hours', (select id from brands where is_regular))$q$);
 select pg_temp.expect_value('Closed at tomorrow''s closing time (23 hours later)', 'closed at publish + 23 hours',
   $q$select status || case when closed_at = (select pub from ch) + interval '23 hours' then ' at publish + 23 hours' else ' at ' || closed_at end
-     from market_status('00000000-0000-0000-0000-0000000000a1', (select channels from k), (select pub from ch) + interval '23 hours 1 minute')$q$);
+     from market_status('00000000-0000-0000-0000-0000000000a1', (select channels from k), (select pub from ch) + interval '23 hours 1 minute', (select id from brands where is_regular))$q$);
 
 select pg_temp.expect_value('A family never published shows "not published"', 'not_published',
-  $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select angles from k))$q$);
+  $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select angles from k), null, (select id from brands where is_regular))$q$);
 
 -- A daily closing time is required before the first publish ---------------------------
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000f6');
 select pg_temp.expect_message('F has no closing time: his first publish is refused, saying what to do',
   'Set your daily closing time before your first publish.',
-  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 40000)))$q$);
+  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 40000, 'brand_id', (select id from brands where is_regular))))$q$);
 select pg_temp.expect_rows('Before publishing, F sets a closing time', 1,
   $q$update seller_profiles set market_close_time = '18:00' where account_id = '00000000-0000-0000-0000-0000000000f6'$q$);
 select pg_temp.expect_rows('...and can still clear it (not yet published)', 1,
@@ -507,7 +511,7 @@ select pg_temp.expect_rows('...and can still clear it (not yet published)', 1,
 select pg_temp.expect_rows('F accepts 6:00 PM', 1,
   $q$update seller_profiles set market_close_time = '18:00' where account_id = '00000000-0000-0000-0000-0000000000f6'$q$);
 select pg_temp.expect_value('Now F''s first publish goes through', 'published',
-  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 40000)))
+  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 40000, 'brand_id', (select id from brands where is_regular))))
      is not null then 'published' end$q$);
 select pg_temp.expect_rows('After publishing, F can change his closing time', 1,
   $q$update seller_profiles set market_close_time = '19:30' where account_id = '00000000-0000-0000-0000-0000000000f6'$q$);

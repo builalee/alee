@@ -101,6 +101,9 @@ select save_chart_version((select id from charts where name = 'B sizes'), 'kg',
 
 -- Ids everyone in the checks can refer to.
 select pg_temp.as_owner();
+-- Test sellers sell Regular in each family they deal in.
+select pg_temp.sell_regular();
+
 create temp table k as
 select (select id from segments where name = 'TMT Bars') as tmt,
        (select id from segments where name = 'MS Angles') as angles,
@@ -156,7 +159,7 @@ returns text language sql as $$
       || ' | unit '     || coalesce(r.display_unit::text, '-')
       || case when p_grade is null then '' else
            ' | premium ' || coalesce(r.grade_premium::text, '-') || ' | sold ' || coalesce(r.grade_sold_here::text, '-') end
-    from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k), p_region, p_grade, p_version) r
+    from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k), p_region, p_grade, p_version, (select id from brands where is_regular)) r
     left join charts dc on dc.id = r.discount_chart_id
 $$;
 
@@ -176,9 +179,9 @@ select pg_temp.expect_value('Amounts are stored as exact rupees', 'area_differen
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 
 select pg_temp.expect_refused('Before A saves any area settings he serves nowhere: there is nothing to look up',
-  $q$select * from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k))$q$);
+  $q$select * from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k), null, null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_value('A saves version 1', 'saved',
-  $q$select case when save_area_settings((select tmt from k), (select v1 from setup)) is not null then 'saved' end$q$);
+  $q$select case when save_area_settings((select tmt from k), (select v1 from setup), null, (select id from brands where is_regular)) is not null then 'saved' end$q$);
 select pg_temp.expect_value('Version 1 records its unit (A''s unit for TMT)', 'v1 tonne',
   $q$select string_agg('v' || version_number || ' ' || unit, ', ') from area_setting_versions
      where seller_id = '00000000-0000-0000-0000-0000000000a1'$q$);
@@ -233,20 +236,20 @@ select pg_temp.expect_value('Fe550D in Sangli: premium 300 from Maharashtra, sol
 -- "Everywhere" must be chosen explicitly ---------------------------------------
 
 select pg_temp.expect_refused('An area with neither a region nor "everywhere"',
-  $q$select save_area_settings((select tmt from k), '[{"area_difference": 500}]')$q$);
+  $q$select save_area_settings((select tmt from k), '[{"area_difference": 500}]', null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_refused('An area with an empty region (not an explicit "everywhere")',
-  $q$select save_area_settings((select tmt from k), '[{"region_id": null, "area_difference": 500}]')$q$);
+  $q$select save_area_settings((select tmt from k), '[{"region_id": null, "area_difference": 500}]', null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_refused('An area that is both a region and "everywhere"',
   $q$select save_area_settings((select tmt from k),
-       jsonb_build_array(jsonb_build_object('everywhere', true, 'region_id', (select pune from k))))$q$);
+       jsonb_build_array(jsonb_build_object('everywhere', true, 'region_id', (select pune from k))), null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_refused('"Everywhere" given twice',
-  $q$select save_area_settings((select tmt from k), '[{"everywhere": true}, {"everywhere": true}]')$q$);
+  $q$select save_area_settings((select tmt from k), '[{"everywhere": true}, {"everywhere": true}]', null, (select id from brands where is_regular))$q$);
 
 select pg_temp.expect_value('A saves version 2: version 1 plus "everywhere" +500', 'saved',
   $q$select case when save_area_settings((select tmt from k),
        (select v1 from setup) || jsonb_build_array(jsonb_build_object('everywhere', true, 'area_difference', 500,
          'size_chart_id', (select a_sizes from k), 'loading_chart_id', (select a_loading from k),
-         'discount_chart_id', (select a_discount from k)))) is not null then 'saved' end$q$);
+         'discount_chart_id', (select a_discount from k))), null, (select id from brands where is_regular)) is not null then 'saved' end$q$);
 select pg_temp.expect_value('With "everywhere" chosen, North Goa is served at +500',
   'served | diff 500 | discount A discount | unit -',
   $q$select pg_temp.res((select north_goa from k))$q$);
@@ -265,40 +268,40 @@ select pg_temp.expect_value('Looking up version 1 still gives North Goa not serv
 
 select pg_temp.expect_refused('A misspelt setting name is refused, never treated as "not set"',
   $q$select save_area_settings((select tmt from k),
-       jsonb_build_array(jsonb_build_object('region_id', (select pune from k), 'area_diference', 0)))$q$);
+       jsonb_build_array(jsonb_build_object('region_id', (select pune from k), 'area_diference', 0)), null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_refused('Using another seller''s chart',
   $q$select save_area_settings((select tmt from k),
-       jsonb_build_array(jsonb_build_object('region_id', (select pune from k), 'size_chart_id', (select b_sizes from k))))$q$);
+       jsonb_build_array(jsonb_build_object('region_id', (select pune from k), 'size_chart_id', (select b_sizes from k))), null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_refused('A loading chart in the size chart slot',
   $q$select save_area_settings((select tmt from k),
-       jsonb_build_array(jsonb_build_object('region_id', (select pune from k), 'size_chart_id', (select a_loading from k))))$q$);
+       jsonb_build_array(jsonb_build_object('region_id', (select pune from k), 'size_chart_id', (select a_loading from k))), null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_refused('A size chart from another product family',
   $q$select save_area_settings((select tmt from k),
-       jsonb_build_array(jsonb_build_object('region_id', (select pune from k), 'size_chart_id', (select a_angle from k))))$q$);
+       jsonb_build_array(jsonb_build_object('region_id', (select pune from k), 'size_chart_id', (select a_angle from k))), null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_refused('A switched-off chart',
   $q$select save_area_settings((select tmt from k),
-       jsonb_build_array(jsonb_build_object('region_id', (select pune from k), 'size_chart_id', (select a_spare from k))))$q$);
+       jsonb_build_array(jsonb_build_object('region_id', (select pune from k), 'size_chart_id', (select a_spare from k))), null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_refused('A chart with no figures yet',
   $q$select save_area_settings((select tmt from k),
-       jsonb_build_array(jsonb_build_object('region_id', (select pune from k), 'size_chart_id', (select a_empty from k))))$q$);
+       jsonb_build_array(jsonb_build_object('region_id', (select pune from k), 'size_chart_id', (select a_empty from k))), null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_refused('An excluded area that also sets an area difference',
   $q$select save_area_settings((select tmt from k),
-       jsonb_build_array(jsonb_build_object('region_id', (select kolhapur from k), 'excluded', true, 'area_difference', 0)))$q$);
+       jsonb_build_array(jsonb_build_object('region_id', (select kolhapur from k), 'excluded', true, 'area_difference', 0)), null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_refused('A grade from another product family',
   $q$select save_area_settings((select tmt from k),
        jsonb_build_array(jsonb_build_object('region_id', (select pune from k),
-         'grades', jsonb_build_array(jsonb_build_object('product_id', (select angle_grade from k), 'premium', 100)))))$q$);
+         'grades', jsonb_build_array(jsonb_build_object('product_id', (select angle_grade from k), 'premium', 100)))), null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_refused('The same area twice',
   $q$select save_area_settings((select tmt from k),
-       jsonb_build_array(jsonb_build_object('region_id', (select pune from k)), jsonb_build_object('region_id', (select pune from k))))$q$);
+       jsonb_build_array(jsonb_build_object('region_id', (select pune from k)), jsonb_build_object('region_id', (select pune from k))), null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_refused('An unapproved area',
   $q$select save_area_settings((select tmt from k),
-       jsonb_build_array(jsonb_build_object('region_id', (select unapproved from k))))$q$);
+       jsonb_build_array(jsonb_build_object('region_id', (select unapproved from k))), null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_refused('Display unit other than tonne, kg, piece or metre',
   $q$select save_area_settings((select tmt from k),
-       jsonb_build_array(jsonb_build_object('region_id', (select pune from k), 'display_unit', 'quintal')))$q$);
+       jsonb_build_array(jsonb_build_object('region_id', (select pune from k), 'display_unit', 'quintal')), null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_refused('Settings for a product family A does not deal in',
-  $q$select save_area_settings((select angles from k), '[{"everywhere": true}]')$q$);
+  $q$select save_area_settings((select angles from k), '[{"everywhere": true}]', null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_value('Refused saves left no half-made versions: A still has versions 1 and 2', '1, 2',
   $q$select string_agg(version_number::text, ', ' order by version_number) from area_setting_versions
      where seller_id = '00000000-0000-0000-0000-0000000000a1'$q$);
@@ -348,11 +351,11 @@ select pg_temp.expect_value('Another seller reads A''s area settings: nothing', 
 select pg_temp.expect_value('Another seller reads any grade settings: nothing', '0',
   $q$select count(*)::text from area_grade_settings$q$);
 select pg_temp.expect_refused('Another seller looks up A''s settings for Pune',
-  $q$select * from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k))$q$);
+  $q$select * from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k), null, null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_refused('Another seller saves area settings for A',
-  $q$select save_area_settings((select tmt from k), '[{"everywhere": true}]', '00000000-0000-0000-0000-0000000000a1')$q$);
+  $q$select save_area_settings((select tmt from k), '[{"everywhere": true}]', '00000000-0000-0000-0000-0000000000a1', (select id from brands where is_regular))$q$);
 select pg_temp.expect_value('B saves his own settings', 'saved',
-  $q$select case when save_area_settings((select tmt from k), '[{"everywhere": true, "area_difference": 0.2}]') is not null
+  $q$select case when save_area_settings((select tmt from k), '[{"everywhere": true, "area_difference": 0.2}]', null, (select id from brands where is_regular)) is not null
      then 'saved' end$q$);
 select pg_temp.expect_value('B''s version records his unit (kg)', 'v1 kg',
   $q$select 'v' || version_number || ' ' || unit from area_setting_versions
@@ -364,15 +367,15 @@ select pg_temp.expect_value('A buyer reads A''s versions by id: nothing', '0',
 select pg_temp.expect_value('A buyer reads any area settings: nothing', '0',
   $q$select count(*)::text from area_settings$q$);
 select pg_temp.expect_refused('A buyer looks up A''s settings for his own area',
-  $q$select * from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k))$q$);
+  $q$select * from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k), null, null, (select id from brands where is_regular))$q$);
 
 select pg_temp.as_visitor();
 select pg_temp.expect_refused('Visitor reads area setting versions', $q$select * from area_setting_versions$q$);
 select pg_temp.expect_refused('Visitor reads area settings', $q$select * from area_settings$q$);
 select pg_temp.expect_refused('Visitor reads grade settings', $q$select * from area_grade_settings$q$);
 select pg_temp.expect_refused('Visitor looks up A''s settings',
-  $q$select * from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k))$q$);
-select pg_temp.expect_refused('Visitor saves area settings', $q$select save_area_settings((select tmt from k), '[]')$q$);
+  $q$select * from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k), null, null, (select id from brands where is_regular))$q$);
+select pg_temp.expect_refused('Visitor saves area settings', $q$select save_area_settings((select tmt from k), '[]', null, (select id from brands where is_regular))$q$);
 
 -- Admin manages any seller's settings -------------------------------------------
 
@@ -381,9 +384,9 @@ select pg_temp.expect_value('Admin reads A''s versions', '2',
   $q$select count(*)::text from area_setting_versions where seller_id = '00000000-0000-0000-0000-0000000000a1'$q$);
 select pg_temp.expect_value('Admin looks up A''s settings for Pune', 'served, diff 0',
   $q$select case when is_served then 'served' else 'not served' end || ', diff ' || area_difference
-     from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k))$q$);
+     from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k), null, null, (select id from brands where is_regular))$q$);
 select pg_temp.expect_value('Admin saves an empty setup for A (version 3: serves nowhere)', 'saved',
-  $q$select case when save_area_settings((select tmt from k), '[]', '00000000-0000-0000-0000-0000000000a1') is not null
+  $q$select case when save_area_settings((select tmt from k), '[]', '00000000-0000-0000-0000-0000000000a1', (select id from brands where is_regular)) is not null
      then 'saved' end$q$);
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');

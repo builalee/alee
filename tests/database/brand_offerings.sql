@@ -3,8 +3,8 @@
 -- Covers: a seller's choices for one brand are independent of another;
 -- "select all" for one brand leaves the other untouched; history records
 -- the brand; choosing needs an active brand line (plain message); the
--- per-size lookup uses the Regular line until brands step 5; a choice
--- saved without a brand is Regular (transitional, until step 11).
+-- per-size lookup lists each size once for the brand asked about; a choice
+-- or "select all" that names no brand is refused.
 -- Tables: seller_grades, seller_sizes, seller_offering_history.
 -- Function: select_all_in_family.
 --
@@ -31,6 +31,9 @@ select b.id, s.id from brands b, segments s where b.name in ('Check Tiscon', 'Ch
 insert into seller_brands (seller_id, brand_id, segment_id)
 select '00000000-0000-0000-0000-0000000000a1', b.id, s.id from brands b, segments s
  where b.name = 'Check Tiscon' and s.name = 'TMT Bars';
+
+-- Test sellers sell Regular in each family they deal in.
+select pg_temp.sell_regular();
 
 create temp table k as
 select (select id from segments where name = 'TMT Bars') as tmt,
@@ -64,8 +67,10 @@ select pg_temp.expect_value('Select all sizes for Check Tiscon TMT', (select tmt
 select pg_temp.expect_value('Check Tiscon has every size; Regular still has none',
   (select 'Tiscon: 0 grades, ' || tmt_sizes || ' sizes | Regular: 0 grades, 0 sizes' from k),
   $q$select 'Tiscon: ' || pg_temp.offered((select tiscon from k)) || ' | Regular: ' || pg_temp.offered((select regular from k))$q$);
-select pg_temp.expect_rows('S selects Fe550D for Regular only (saved without a brand = Regular)', 1,
+select pg_temp.expect_refused('A choice saved without naming a brand is refused (Regular must be named too)',
   $q$insert into seller_grades (seller_id, product_id, is_selected) values ('00000000-0000-0000-0000-0000000000a1', (select fe550d from k), true)$q$);
+select pg_temp.expect_rows('S selects Fe550D for Regular only', 1,
+  $q$insert into seller_grades (seller_id, brand_id, product_id, is_selected) values ('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select fe550d from k), true)$q$);
 select pg_temp.expect_rows('S selects 8mm for Regular', 1,
   $q$insert into seller_sizes (seller_id, brand_id, size_id, is_selected)
      values ('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select s8 from k), true)$q$);
@@ -106,13 +111,16 @@ select pg_temp.expect_refused('A choice cannot be moved to another brand',
   $q$update seller_sizes set brand_id = (select regular from k)
      where seller_id = '00000000-0000-0000-0000-0000000000a1' and brand_id = (select tiscon from k) and size_id = (select s8 from k)$q$);
 
--- The per-size lookup reads the Regular line (until step 5) --------------------------------
+-- The per-size lookup, for the Regular line ---------------------------------------------
+
+select pg_temp.expect_message('"Select all" without naming a brand', 'Name the brand (Regular is a brand too).',
+  $q$select select_all_in_family((select tmt from k), 'sizes')$q$);
 
 select pg_temp.expect_rows('S selects 8mm for Regular again', 1,
   $q$update seller_sizes set is_selected = true where seller_id = '00000000-0000-0000-0000-0000000000a1'
        and brand_id = (select regular from k) and size_id = (select s8 from k)$q$);
 select pg_temp.expect_value('S saves Regular TMT area settings (everywhere, no charts)', 'saved',
-  $q$select case when save_area_settings((select tmt from k), '[{"everywhere": true, "area_difference": 0}]') is not null then 'saved' end$q$);
+  $q$select case when save_area_settings((select tmt from k), '[{"everywhere": true, "area_difference": 0}]', null, (select id from brands where is_regular)) is not null then 'saved' end$q$);
 select pg_temp.expect_value('The lookup lists each size once, offered as Regular says (8mm only)', (select tmt_sizes || ' sizes, offered: 8mm' from k),
   $q$select count(*) || ' sizes, offered: ' || string_agg(display_name, ', ') filter (where is_offered)
-     from resolve_size_figures('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k))$q$);
+     from resolve_size_figures('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select pune from k), null, null, null, (select id from brands where is_regular))$q$);
