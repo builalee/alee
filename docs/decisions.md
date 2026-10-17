@@ -437,6 +437,7 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 **How (2026-10-17):**
 - **Transition:** while brands are built in, every existing function treats "no brand given" as **Regular**. So the existing saved checks keep passing unchanged throughout.
 - **Removing the shortcut:** in the final step it is removed, so no screen can ever save to the wrong brand by forgetting to name it. Every check is then updated to name its brand, and all must pass before the rate engine is built.
+**Done (2026-10-17):** the shortcut was removed in brands step 11. Every function that takes a brand refuses a call that names none ("Name the brand (Regular is a brand too)."). Adding a product family no longer adds a Regular line. All saved checks name their brands and pass.
 
 ---
 

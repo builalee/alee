@@ -6,11 +6,11 @@ Read this fully before doing anything. These rules override defaults.
 
 ## 1. What ALEE is
 
-ALEE is a rate publishing and trade record platform for the Indian steel industry — manufacturers, distributors, wholesalers and retailers. A seller publishes one base rate with area-based adjustments; each subscribed buyer sees only the final rate for his own area. Phase 1 also covers enquiries, orders with dispatch details, territory allocation, retailer store profiles and a client book.
+ALEE is a rate publishing and trade record platform for the Indian steel industry — manufacturers, distributors, wholesalers and retailers. A seller publishes one base rate per brand he sells, with area-based adjustments; each subscribed buyer sees only the final rate for his own area. Phase 1 also covers enquiries, orders with dispatch details, territory allocation, retailer store profiles and a client book.
 
 ALEE is intended to become infrastructure — the system of record the trade relies on. That means **correctness, consistency and an unalterable history matter more than speed of delivery.** A wrong rate shown to a buyer is the worst possible failure.
 
-Launch market: Goa and Maharashtra. Products: TMT bars, angles, channels.
+Launch market: Goa and Maharashtra. Products: TMT bars, angles, channels, in many brands (and unbranded, "Regular").
 
 ---
 
@@ -131,6 +131,9 @@ Before launch, live may be updated at the end of each build stage. After launch:
 
 ### Catalogue structure
 - **Segment** (TMT Bars) → **product / grade** (Fe500, Fe500D, Fe550D).
+- **Brands** come from ALEE's list. Sellers request missing ones and admins approve them. **Regular** is the unbranded option for every family, shown as "Regular TMT". A brand can cover several families.
+- **Brand line:** a seller's setup is per **brand line**, meaning seller + brand + product family (*Bala Traders – Tata – TMT*). Each brand line has its own base rate, grades and sizes, area settings, "not quoting" and market status. Charts stay per seller and family, so brand lines can share them. The pricing unit stays per family. **Every function that takes a brand must be told it; Regular is named like any other brand.**
+- **Brand owners and factories:** a manufacturer may own a brand (claim approved by an admin). A brand can have several **factories**, each its own seller account that accepted the link. The owner decides which factory covers which area, per brand and family (`resolve_brand_factory`), and the closer area wins. A buyer sees the rate of the factory serving his area; the brand appears as one brand.
 - **Sizes belong to the segment, not the grade.** TMT has one size list (8–32mm) shared by every TMT grade; the same holds for angles and channels.
 
 ### The formula
@@ -153,11 +156,12 @@ final rate = base rate + grade premium + size difference + loading + area differ
 **Discount is shown to the buyer as a separate line beneath the rate**, e.g. `₹40,300 — less ₹500/tonne`. All other components are combined: the buyer sees only his final figure, never the base, the grade premium or the individual differences.
 
 ### Precedence
-1. **Territory allocation** — checked first, with `resolve_territory`. An allocation counts only once the distributor has accepted it, and the closest allocated area to the buyer wins (Karad taluka beats Satara district). Two types, chosen by the manufacturer:
+0. **Factory (a brand owner's own rate only)** — `resolve_brand_factory` finds the factory serving the buyer's area for that brand and family. If none does, or the factory has left, the brand is not offered there from the owner.
+1. **Territory allocation** — checked first for every seller shown, with `territory_effect` (built on `resolve_territory`), **per brand**. An allocation counts only once the distributor has accepted it, and the closest allocated area to the buyer wins (Karad taluka beats Satara district). Two types, chosen by the manufacturer:
    - **Type A, distributor sets the price (`distributor_prices`):** the manufacturer's rate is not shown there; the buyer is pointed to the distributor, who publishes his own rates.
    - **Type B, manufacturer sets the price (`manufacturer_prices`):** the buyer sees the manufacturer's own rate, worked out as normal below, tagged "Authorised distributor for [area]: [distributor]". The distributor does not publish that brand's rate there. Enquiries from that area go to the distributor.
 
-   No allocation in effect: continue below with the manufacturer's own settings.
+   Territory affects only the brand owner's factories and his appointed distributor. Type B hides only that distributor's rate **for that brand** in that area; his other brands are unaffected. Other sellers of the brand keep showing their own rates. No allocation in effect: continue below.
 2. **Explicit exclusion** — the seller has marked this area as not served.
 3. **Area resolution** — most specific first: city → taluka → district → state. First match wins.
 4. **No match** — the seller does not serve this buyer.
@@ -191,7 +195,7 @@ final rate = base rate + grade premium + size difference + loading + area differ
 
 ## 9. Area-level settings
 
-Each of the following can be attached to an area and **resolves independently**, most specific first. If not set at a level, it inherits from the level above:
+Area settings are **per brand line** (seller, brand, family). Each of the following can be attached to an area and **resolves independently**, most specific first. If not set at a level, it inherits from the level above:
 
 - grade premium (per grade)
 - size difference chart (per segment by default; per grade where needed)
@@ -290,6 +294,10 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 ## 17. Glossary
 
 - **Segment** — a product family: TMT bars, angles, channels.
+- **Brand** — a make of product from ALEE's list (e.g. Tata Tiscon). **Regular** is the unbranded option, shown as "Regular TMT".
+- **Brand line** — one brand a seller sells in one product family; it has its own setup, rates and status.
+- **Brand owner** — the manufacturer who owns a brand; only he appoints its authorised distributors and links its factories.
+- **Factory** — a seller account linked (by acceptance) to a brand, serving the areas the owner assigns it.
 - **Grade** — a product within a segment, e.g. Fe500D within TMT. Grades share the segment's size list.
 - **Base rate** — the seller's reference price, per his unit for that product family (tonne or kg). Grades add a grade premium on top.
 - **Grade premium** — the premium a grade carries over the base rate. An area-level setting.
@@ -307,8 +315,8 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 ## 18. Phase 1 scope — what is being built
 
 - **Accounts** — phone OTP login, role chosen at signup. Every account can both buy and sell.
-- **Seller setup** — profile, banner, location, market close time, public or private setting. Size, loading and discount charts, templates, area-level settings.
-- **Publishing** — four taps maximum: open, Publish, enter rate (yesterday's pre-filled), confirm. The confirmation shows the **final rate for each area**, not the differences. Supports updating one segment or all segments at once.
+- **Seller setup** — profile, banner, location, market close time, public or private setting. The brands he sells per family (copy one brand's setup to another in one tap). Size, loading and discount charts, templates, area-level settings, per brand line.
+- **Publishing** — four taps maximum: open, Publish, enter rate (yesterday's pre-filled), confirm. The confirmation shows the **final rate for each area**, not the differences. Supports updating one brand line or all of them at once: every brand pre-filled from yesterday (`publish_prefill`), "move everything by ±₹X" as **one amount per product family** (`publish_moved`), confirm. One publish, one notification.
 - **Market close** — after the seller's close time, or straight away if he presses "close market now", his last rate still shows, tagged "market closed" with the closing time, until he publishes again. Separately, "not quoting today" switches a family off with one tap until he switches it back on or publishes that family. A daily closing time is required before the first publish; the setup screen pre-fills 6:00 PM so accepting it is one tap. Use `market_status`; never work this out in a screen.
 - **Search and public profile** — find sellers by product, area or name.
 - **Subscriptions** — subscribe to receive rates, alert preference chosen per subscription, approval for private profiles, blocking.
@@ -349,7 +357,7 @@ Each engine is built once, tested thoroughly, and used everywhere. Screens never
 
 | Engine | Job |
 |---|---|
-| **Rate** | Returns a buyer's final rate from seller, product, size and location. Applies territory, exclusions, area resolution, charts and discount. |
+| **Rate** | Returns a buyer's final rate from seller, **brand**, product, size and location. Applies factory coverage, territory, exclusions, area resolution, charts and discount. |
 | **Access** | Decides who can see and do what: subscription, public/private, approval, blocking, territory. |
 | **Notification** | On publish: finds recipients, respects alert settings, sends **one** message per publish event however many products changed, queues and retries. Publishing must return immediately without waiting for sends. |
 | **Market status** | Open or closed now, from the seller's close time in IST. |
@@ -362,6 +370,9 @@ Each engine is built once, tested thoroughly, and used everywhere. Screens never
 ### Build order rule
 **Engines are built and tested before any screen that uses them.** The rate engine in particular must pass every case below before any screen displays a price:
 
+- Two brands of one seller in one area resolve from their own settings and publishes, never each other's
+- A brand owner's rate comes from the factory covering the buyer's area (closer area wins); a factory that left means not offered, never another factory
+- Type B hides the appointed distributor's rate for that brand only; his other brands and other sellers of the brand are unaffected
 - Exact city match
 - Fall back to taluka, then district, then state
 - Explicit exclusion overrides a broader served area

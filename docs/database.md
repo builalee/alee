@@ -154,7 +154,7 @@ The same rows as `sizes`, plus `weight_per_piece_kg` = weight per metre × piece
 
 ## Area: brands
 
-Brands are being added in steps (decisions 2.37 to 2.44). **Step 1 (built):** the brand list. Later steps make sellers' setups, publishing, factories and territory per brand.
+Brands (decisions 2.37 to 2.44) run through everything a seller sets up: grades and sizes, area settings, publishing, status, factories and territory are all **per brand line** (seller, brand, product family). Every function that takes a brand must be told it; Regular is named like any other brand.
 
 ### `brands` — ALEE's brand list
 
@@ -213,7 +213,7 @@ Which brands each seller sells, per product family, e.g. *Bala Traders – Tata 
   - **Zero and not set:** "not set" and zero are kept apart.
   - **Unit changes:** if his unit for the family changed since the source was saved, amounts are converted exactly or the copy is refused.
   - **Afterwards:** the two brands are separate. Copying again overwrites the target, and its old versions are kept.
-- **Transitional (decisions 2.44, removed in step 11):** adding a product family automatically adds a **Regular** brand line for it, so everything built before brands keeps working. Existing sellers' families were carried across as Regular lines.
+- **No automatic lines:** adding a product family does not add any brand line; a seller sells only the brands he chooses, Regular included. (While brands were being built, a Regular line was added automatically; existing sellers' families were carried across as Regular lines.)
 - **Checks:** `tests/database/seller_brands.sql`.
 
 ### Factories (step 8)
@@ -379,7 +379,7 @@ For each brand he sells in a product family (each brand line), a seller explicit
 
 - **One brand at a time:** every choice, and every history entry, carries the brand (`brand_id`). Choices for one brand never affect another.
 - **Needs an active brand line:** choosing requires one ("Add Check Rods to the brands you sell first."). Unselecting is always allowed.
-- **Transitional (until brands step 11):** a choice saved without a brand, and "select all" without one, mean Regular.
+- **The brand must be named:** a choice, or "select all", that names no brand is refused: "Name the brand (Regular is a brand too)."
 
 ### `seller_grades` and `seller_sizes` — his current choices
 One row per seller per grade (`product_id`) or per size (`size_id`).
@@ -418,7 +418,7 @@ What a seller attaches to areas, per product family: area difference, charts, gr
 
 **"Not set" and zero:** throughout these tables an empty field means **not set**, and the setting carries down from the area above. A value, **including 0**, means set here. Zero never carries down.
 
-**Brands:** all of this is per brand line. Until brands step 11, a save or lookup without a brand means Regular, and publishing uses the Regular line (step 6 gives publishes a brand).
+**Brands:** all of this is per brand line. Saving and both lookups must name the brand; a call that names none is refused.
 
 **Not set anywhere:** the lookups return empty, never 0. For loading, area difference, grade premium and size difference, empty means **missing**: the rate engine must flag it and leave that price out, never price it at zero. A seller who means zero enters 0. Only a missing discount simply means no discount (decisions 2.24).
 
@@ -538,7 +538,7 @@ One row per chart that the area settings pointed to, pinned to the version that 
 - **`set_quoting(family, on/off, seller, brand)`** is the "not quoting today" switch. Switching to the state it's already in records nothing.
 - **`close_market_now(families, seller, brands)`** closes the given families and brands now; if none are named, every brand line he sells. Only families currently open are closed and recorded.
 
-**Brands:** until brands step 11, an item, switch or lookup without a brand means Regular. Publishing one brand line reopens and resumes only that line.
+**Brands:** every publish item, switch and status lookup must name its brand. Publishing one brand line reopens and resumes only that line.
 
 ### Who can see and change
 - **Basic rates, publishes and pinned versions:** the seller and admins only. Other sellers, buyers and visitors get nothing, even asking the database directly. Buyers will only ever see their own final rate, through the rate engine.
