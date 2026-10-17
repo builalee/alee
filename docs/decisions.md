@@ -118,6 +118,60 @@ Ratings, AI suggestions, market averages, open bidding, dashboards and similar f
 ### 2.10 Unverified weights cannot be used
 **Why:** A wrong weight produces a wrong converted rate. Sizes stay switched off until their weight is confirmed.
 
+### 2.11 A chart belongs to one seller and one product family
+**Decision (2026-10-17):** Each size, loading or discount chart belongs to one seller and one product family, or to ALEE as a template. Its owner, family and type never change; a different arrangement is a new chart.
+**Why:** A TMT size chart means nothing for angles. Fixing the owner and family means a chart can never quietly start pricing something it was not written for.
+
+### 2.12 Every save is a new version, and each version states its unit
+**Decision (2026-10-17):** Chart figures live in versions. Saving creates a new version; an existing version is never edited or added to, not even by the database owner. Each version records whether its figures are per tonne or per kg, and when it was saved.
+**Why:** This is decision 4.1 applied to charts. Recording the unit on the version means "6.5" can never be mistaken for rupees per tonne when it was rupees per kg, a thousand-fold error (see 2.8).
+
+### 2.13 Money is stored exactly
+**Decision (2026-10-17):** Every money amount is an exact decimal, never an approximate number that can drift by fractions of a rupee.
+**How:** amounts keep up to 4 decimal places, so a per-tonne figure converted to per kg stays exact (₹6,533/tonne = ₹6.533/kg). A figure with more precision is refused, not silently rounded. Rounding for display belongs to the money engine (CLAUDE.md section 11), never to storage.
+
+### 2.14 A used chart is switched off only with a replacement
+**Decision (2026-10-17):** No chart is ever deleted. A chart any publish has used can be switched off only by naming the active chart that replaces it, of the same seller, family and type.
+**Why:** History must lead somewhere. A buyer's area pointing at a switched-off chart with no successor would silently lose its size differences.
+**How, until publishing exists:** each chart carries a "used since" mark that only the publish engine can set, and that can never be cleared.
+
+### 2.15 Charts stay private until area settings exist
+**Decision (2026-10-17):** For now only the owning seller and admins see a seller's charts. Logged-in sellers see templates. Visitors see nothing. Once area settings are built, a visitor will see only the charts that apply to his own area.
+**Relation to 1.8:** 1.8 says size differences and loading are public. That still stands, but takes effect only with area settings, and only for the visitor's own area.
+
+### 2.16 ALEE ships a TMT size template, but no loading template
+**Decision (2026-10-17):** ALEE's first template is the TMT Bars size chart "Standard TMT – Maharashtra & Goa", per tonne:
+
+| Size | Figure (₹/tonne) |
+|---|---|
+| 8mm | 6,500 |
+| 10mm | 5,500 |
+| 12mm | 5,500 |
+| 16mm | 5,500 |
+| 20mm | 5,500 |
+| 25mm | 5,500 |
+| 32mm | 6,500 |
+
+**No loading template is shipped.**
+
+**Why:** Size differences are largely common across sellers in these markets, so a template saves a new seller from typing them and keeps them consistent. Loading is different: it varies per seller, so any template figure would be wrong for most sellers and would invite them to publish a loading that isn't theirs. Each seller enters his own loading.
+
+### 2.17 Sellers choose exactly what they sell; a missing figure is an error, never zero
+**Decision (2026-10-17):**
+- **Choosing:** within each product family he deals in, a seller explicitly selects which grades and which sizes he sells, with a select-all option. Nothing is selected by default.
+- **Not selected means not offered:** a grade or size not selected is "not offered" to his buyers.
+- **New sizes start unselected:** a size switched on in the catalogue later starts unselected for every seller. "Select all" covers only what exists at that moment.
+- **Nothing is deleted:** selecting and unselecting never deletes anything, and every change is kept as history, with who made it.
+- **A missing figure is an error:** if a seller has selected a size but his size chart has no figure for it, that is an error, not zero. The rate engine must never treat it as zero. Publishing must flag it and leave that size out until it is fixed.
+
+**Why:** A seller who doesn't stock 32mm must never appear to quote it. Making him choose, rather than assuming everything, means ALEE only ever shows what he actually sells. A missing figure treated as zero would quote that size at the base rate, a wrong rate nobody notices until a buyer orders it. Leaving the size out and flagging it is safe; guessing is not.
+**How:** `size_chart_missing_figures` is the single check that lists selected sizes with no figure. Publishing and the rate engine must both use it.
+
+### 2.18 Copying a template converts into the seller's unit
+**Decision (2026-10-17):** When a seller copies a template, his copy is saved in the unit he prices that product family in. A per-tonne template copied by a per-kg seller becomes per kg: ₹6,500 per tonne becomes ₹6.50 per kg. Flat discounts convert the same way; percentages don't change. A seller must deal in the template's product family to copy it.
+**Why:** A seller's charts should read in the unit he thinks and prices in. This replaces the earlier proposal that copies keep the template's unit (see open questions).
+**How:** conversion between per tonne and per kg happens in one place, `convert_per_unit`. If a figure cannot be converted exactly to 4 decimal places, the whole copy is refused rather than rounded (2.13).
+
 ---
 
 ## 3. Regions
@@ -233,3 +287,7 @@ Ratings, AI suggestions, market averages, open bidding, dashboards and similar f
 | Angle and channel weights | Unverified and switched off. Confirm weights, whether 25×6 and 32×3 are traded, and the usual length (assumed 6m). |
 | Kushavati | Deferred. Add before any Goa talukas. |
 | Freight, credit terms, minimum quantity | After Phase 1. Credit terms and minimum quantity probably attach to the buyer rather than the area. |
+| ~~A size with no figure in a size chart~~ | **Resolved 2026-10-17, see 2.17.** Sellers select the sizes they offer. A selected size with no figure is an error, never zero: publishing flags it and leaves that size out until fixed. |
+| Admins editing sellers' charts (proposed 2026-10-17) | Admins can create and change any seller's chart and copy templates for a seller, to match setting up the first sellers personally. Admin reads must also be logged (6.5) once the API layer exists. Confirm. |
+| ~~Template copies keep the template's unit (proposed 2026-10-17)~~ | **Superseded 2026-10-17 by 2.18:** copies are converted into the seller's unit. Converting a seller's existing charts when he later changes his unit (2.8) is still to be built. |
+| Limits on chart figures (proposed 2026-10-17) | A flat discount cannot be negative. Loading and size figures may be any sign. Confirm whether loading should also be barred from going negative. |

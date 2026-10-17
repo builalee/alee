@@ -24,6 +24,18 @@ erDiagram
     regions         ||--o{ regions          : "contains (parent)"
     regions         ||--o{ accounts         : "person located in"
     regions         ||--o{ seller_profiles  : "store located in"
+    seller_profiles ||--o{ charts           : "owns"
+    segments        ||--o{ charts           : "chart for family"
+    charts          ||--o{ charts           : "copied from template / replaced by"
+    charts          ||--o{ chart_versions   : "saved as"
+    chart_versions  ||--o{ chart_version_figures   : "size and loading figures"
+    chart_versions  ||--o| chart_version_discounts : "discount"
+    sizes           ||--o{ chart_version_figures   : "figure for size"
+    seller_profiles ||--o{ seller_grades    : "offers grade"
+    products        ||--o{ seller_grades    : "offered by"
+    seller_profiles ||--o{ seller_sizes     : "offers size"
+    sizes           ||--o{ seller_sizes     : "offered by"
+    seller_profiles ||--o{ seller_offering_history : "change log"
 ```
 
 In words:
@@ -33,8 +45,10 @@ In words:
 - **A seller profile** lists the **product families** (segments) the seller deals in, through **seller_segments**.
 - **A product family** (segment) has **grades** (products) and one shared list of **sizes**.
 - **Regions** form a tree: state → district → taluka → city. Accounts and seller profiles each point to the region where they are.
+- **A chart** (size, loading or discount) belongs to one seller and one product family, or to ALEE as a template. Its figures live in **versions**. Each version holds per-size **figures** (size and loading charts) or one **discount** (discount charts).
+- **A seller chooses which grades and sizes he sells** (seller_grades, seller_sizes). Every change is logged in seller_offering_history.
 
-**Deleting a login deletes everything personal.** It removes the account, which removes that person's consents, seller profile and seller product families. This is the only way any of those rows can be deleted. Catalogue and region rows are never deleted at all, only switched off.
+**Deleting a login deletes everything personal.** It removes the account, which removes that person's consents, seller profile, seller product families, grade and size choices with their history, and his charts with all their versions. This is the only way any of those rows can be deleted. Catalogue, region and template rows are never deleted at all, only switched off.
 
 ---
 
@@ -176,6 +190,112 @@ And the unit he prices each in.
 
 ---
 
+## Area: charts
+
+A seller's size differences, loading and trade discount are kept in named **charts**. A chart's figures are never edited: every save creates a new **version**, so any past rate can be rebuilt exactly as it was.
+
+### `charts` — a named chart
+One seller, one product family, one type.
+
+| Field | Meaning |
+|---|---|
+| `seller_id` | The seller who owns it. Empty for an ALEE template. |
+| `is_template` | An ALEE template. Sellers copy templates; they never use them directly. |
+| `segment_id` | The product family. Fixed once created. |
+| `chart_type` | `size`, `loading` or `discount`. Fixed once created. |
+| `name` | No two active charts of the same seller, family and type share a name. |
+| `copied_from_template_id` | Which template a seller's chart was copied from. Information only: the copy is fully separate. |
+| `in_use_since` | When a publish first used this chart. Set only by the publish engine, never through the app, and never cleared. |
+| `replaced_by_id` | For a switched-off chart, the chart that replaced it: same seller, family and type, and active. |
+| `is_active` | Switched off instead of deleted. **A chart that a publish has used can be switched off only by naming its replacement.** |
+
+### `chart_versions` — each saved state of a chart
+
+| Field | Meaning |
+|---|---|
+| `chart_id` | The chart. |
+| `version_number` | 1, 2, 3… per chart. |
+| `unit` | `tonne` or `kg`: the unit of every figure in this version, so a figure is never ambiguous. |
+| `created_at` | When it was saved. Set by the database. |
+
+### `chart_version_figures` — the figures of a size or loading chart version
+
+| Field | Meaning |
+|---|---|
+| `version_id` | The version. |
+| `size_id` | The size this figure is for. **Size chart:** always a size from the chart's own product family, each size at most once. **Loading chart:** exactly one row with no size (the figure for all sizes), plus optional rows for particular sizes. |
+| `amount` | Exact rupees per the version's unit. Positive, negative or **zero; zero means "same as base" and is stored as 0, never left empty.** |
+
+### `chart_version_discounts` — the discount of a discount chart version
+
+| Field | Meaning |
+|---|---|
+| `version_id` | The version (one discount per version). |
+| `kind` | `flat` or `percent`. |
+| `flat_amount` | For flat: exact rupees per the version's unit. Never negative. |
+| `percent` | For percent: from 0 to 100. |
+
+### How charts are written
+Figures are written only by two functions, so a version is always complete when saved and nothing can be added to it later:
+
+- **`save_chart_version(chart, unit, figures, discount)`** saves a new version and returns its id. A seller may save only his own charts. Only admins may save templates. Admins may also save any seller's chart, to set sellers up. A switched-off chart cannot be saved.
+- **`copy_template(template, name, seller)`** copies an active template's latest version into a new chart owned by the seller. It records which template it came from. Later changes to the template never reach the copy. A seller copies for himself; an admin may copy for any seller.
+  - **Converted into the seller's unit:** the seller must deal in the template's product family. The copy is saved in his unit for that family: ₹6,500/tonne becomes ₹6.5/kg; flat discounts convert the same way; percentages don't change.
+  - **Exact or refused:** if any figure can't be converted exactly to 4 decimal places, the whole copy is refused and nothing is left behind.
+- **`size_chart_missing_figures(chart)`** lists the sizes the seller has selected (see below) that the size chart's latest version has no figure for. **A missing figure is an error, never zero.** Publishing and the rate engine must use this check, flag what it lists, and leave those sizes out until fixed. A figure of 0 counts as present.
+
+### Who can see and change charts
+- **Seller:** sees and changes only his own charts. Another seller gets nothing back, even when asking for a chart by its id.
+- **Templates:** any logged-in seller sees active templates. Only admins create or change them.
+- **Admins:** see and change all charts.
+- **Visitors:** see nothing yet. Once area settings exist, visitors will see only the charts for their own area.
+- **Never changed, never deleted:** no one can change or delete a saved version or figure, not even the database owner. No one can delete a chart. A seller's charts go only when his whole account is deleted.
+- **Checks:** `tests/database/charts.sql` (rules, using test data) and `tests/database/templates.sql` (the real shipped templates).
+
+### Templates shipped with ALEE
+| Template | Type | Figures |
+|---|---|---|
+| Standard TMT – Maharashtra & Goa | TMT Bars size chart, per tonne | 8mm 6,500 · 10–25mm 5,500 · 32mm 6,500 |
+
+No loading template is shipped; each seller enters his own loading (decisions 2.16).
+
+---
+
+## Area: what each seller offers
+
+Within each product family he deals in, a seller explicitly chooses which grades and which sizes he sells. **Nothing is selected by default, and anything not selected is "not offered" to his buyers.**
+
+### `seller_grades` and `seller_sizes` — his current choices
+One row per seller per grade (`product_id`) or per size (`size_id`).
+
+| Field | Meaning |
+|---|---|
+| `seller_id` | The seller. |
+| `product_id` / `size_id` | The grade or size. |
+| `is_selected` | Offered or not. **No row, or `false`, means not offered.** Unselecting sets `false`; rows are never deleted. |
+
+- **What can be selected:** only active grades and sizes, in a product family the seller currently deals in. Unselecting is always allowed.
+- **Select all:** `select_all_in_family(family, 'grades' or 'sizes', selected, seller)` selects or unselects every grade or size of one family. It returns how many choices changed.
+- **New sizes:** "select all" covers what is switched on in the catalogue now. A size switched on later starts unselected for every seller.
+- **Who can see:** anyone sees what a seller offers (selected rows only). The seller and admins see all his choices.
+- **Who can change:** the seller changes his own; admins can change any seller's, to set sellers up.
+
+### `seller_offering_history` — every change, kept forever
+
+| Field | Meaning |
+|---|---|
+| `seller_id` | The seller. |
+| `product_id` or `size_id` | The grade or size (exactly one). |
+| `is_selected` | What it was changed to. |
+| `changed_at` | When. |
+| `changed_by` | Who: the seller himself, or the admin who made the change. |
+
+- **Written automatically** whenever a choice actually changes. Nobody can write, change or delete it directly, not even the database owner. It goes only when the seller's whole account is deleted.
+- **Who can see:** the seller and admins.
+- **Checks:** `tests/database/offerings.sql`.
+
+---
+
 ## Shared machinery
 
 | Name | What it does |
@@ -184,9 +304,15 @@ And the unit he prices each in.
 | `set_updated_at()` | Keeps `updated_at` current on every table that has one. |
 | `prevent_delete()` | Blocks deletes on catalogue tables (segments, products, sizes), for everyone. |
 | `prevent_direct_delete()` | Blocks deletes on personal tables except when the whole account is being deleted. |
+| `prevent_update()` | Blocks every change to rows that must never change once saved (chart versions and their figures), for everyone. |
+| `convert_per_unit(amount, from, to)` | The one place an amount is converted between per tonne and per kg. Exact to 4 decimal places or refused. Piece and metre need a size's weight and belong to the rate engine. |
+| `rupees` | Every money amount. Exact, up to 4 decimal places. More precision is refused, never rounded. |
+| `percentage` | Exact, from 0 to 100. |
 | `unit` | The four units: `tonne`, `kg`, `piece`, `metre`. Pricing uses only tonne or kg; piece and metre are for display. |
 | `region_level` | `state`, `district`, `taluka`, `city`. |
 | `account_role` | `manufacturer`, `distributor`, `wholesaler`, `retailer`. |
+| `chart_type` | `size`, `loading`, `discount`. |
+| `discount_kind` | `flat`, `percent`. |
 
 ---
 
@@ -194,8 +320,7 @@ And the unit he prices each in.
 
 These appear in CLAUDE.md but have no tables yet:
 
-- grade premium and area-level settings
-- size, loading and discount charts
-- rates and publishing history
+- grade premium and area-level settings (which chart applies where)
+- rates and publishing history (which will set `charts.in_use_since`)
 - subscriptions, enquiries, orders, bills
 - territory allocation, client book

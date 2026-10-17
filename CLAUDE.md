@@ -160,6 +160,8 @@ final rate = base rate + grade premium + size difference + loading + area differ
 
 ### Critical correctness rules
 - **Zero is a real value, not absence.** A difference of ₹0 means "same as base". It must never fall through to a less specific level. Test this explicitly.
+- **A seller offers only what he has selected.** Within each product family he chooses his grades and sizes. Anything not selected is "not offered" and must never be quoted. Sizes switched on in the catalogue later start unselected.
+- **A selected size with no figure in the size chart is an error, never zero.** Publishing flags it (using `size_chart_missing_figures`) and leaves that size out until it is fixed. The rate engine must never quote it.
 - A seller may publish one flat rate with no area configuration at all. This is a distinct mode and must not resolve as "not served".
 - Resolution must be a single indexed query, not a loop of separate lookups.
 
@@ -345,6 +347,8 @@ Each engine is built once, tested thoroughly, and used everywhere. Screens never
 - Explicit exclusion overrides a broader served area
 - Territory allocation suppresses the manufacturer's rate
 - A difference of ₹0 is used, not skipped
+- A grade or size the seller has not selected is not offered
+- A selected size with no size-chart figure is left out and flagged, never quoted at zero
 - Flat-rate seller with no area configuration is served everywhere he sells
 - Different charts in different areas of the same state
 - Discount as a flat amount and as a percentage
