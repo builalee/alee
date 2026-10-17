@@ -553,6 +553,7 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 | ~~"Close market now" with no family named~~ | **Confirmed 2026-10-17:** closes every open family the seller deals in. |
 | ~~No closing time set~~ | **Settled 2026-10-17, see 2.30:** a closing time is required before the first publish, pre-filled at 6:00 PM, and can't be cleared afterwards. |
 | ~~Type B and "that brand's rate"~~ | **Settled 2026-10-17 by brands (2.37, 2.43):** brands are added before the rate engine. Type B hides only that distributor's rate for that brand in that area; his other brands are unaffected. |
+| When a brand changes owner (proposed 2026-10-17) | Built as: only allocations made by the brand's current owner count, so when an admin ends ownership (e.g. the brand is sold), the old owner's distributor appointments stop taking effect. The records stay. The new owner appoints his own. Confirm. |
 | ~~Territory details~~ | **Confirmed 2026-10-17:** (1) ~~a manufacturer can only allocate a family he himself sells~~ **updated 2026-10-17 (2.43): a manufacturer can only allocate a brand he owns, for a family that brand covers**; (2) the type is fixed once accepted (2.35); (3) "everywhere" cannot be allocated, so the widest area is a state. |
 | Public visibility of size differences and loading | Public for now; revisit. |
 | Angle and channel weights | Unverified and switched off. Confirm weights, whether 25×6 and 32×3 are traded, and the usual length (assumed 6m). |

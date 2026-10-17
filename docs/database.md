@@ -545,7 +545,7 @@ One row per chart that the area settings pointed to, pinned to the version that 
 
 ## Area: territory allocation
 
-A manufacturer allocates an area, for one product family, to a distributor. It takes effect only once the distributor accepts. The rate engine checks territory **first**, before exclusions and area settings.
+**Per brand (step 9):** a manufacturer allocates **a brand he owns**, for a product family that brand covers, in an area, to a distributor. It takes effect only once the distributor accepts. The rate engine checks territory **first**, before exclusions and area settings.
 
 ### `territory_allocations` — one row per offer
 Each row is followed through to its end.
@@ -553,13 +553,13 @@ Each row is followed through to its end.
 | Field | Meaning |
 |---|---|
 | `manufacturer_id`, `distributor_id` | The two sides. Never the same seller. |
-| `segment_id` | The product family. |
+| `brand_id`, `segment_id` | The brand (owned by the manufacturer) and product family. |
 | `region_id` | The area: state, district, taluka or city. The closer area wins. |
 | `allocation_type` | `distributor_prices` (Type A): the manufacturer's rate isn't shown there; buyers are pointed to the distributor, who publishes his own rates. `manufacturer_prices` (Type B): the manufacturer's rate is shown, tagged "Authorised distributor for [area]: [distributor]"; enquiries from there go to the distributor. Can change only while it's an offer. |
 | `status` | `offered` (no effect yet) → `active` (accepted, in effect), `declined` (never took effect), or `withdrawn` (the manufacturer took the offer back). `active` → `ended` (by either side). It only moves forward; finished allocations are never revived. |
 | `offered_at`, `accepted_at`, `closed_at` | When it was offered, accepted, and finished. |
 
-- **One open allocation** (offered or active) per manufacturer, family and area: a second distributor can't be given the same area and family. Different families can go to different distributors.
+- **One open allocation** (offered or active) per brand, family and area: a second distributor can't be given the same area and family. Different families can go to different distributors.
 - **Fixed once offered:** the manufacturer, distributor, family, area and offer time never change, not even with the master key. To change them, offer a new allocation.
 
 ### `territory_allocation_events` — every step, kept forever
@@ -567,12 +567,23 @@ Each row is followed through to its end.
 
 ### How territory is changed and looked up
 These are the only ways to change an allocation:
-- **`offer_territory(distributor, family, area, type, manufacturer)`:** the manufacturer offers (an admin may offer for him). He must sell the family himself. Refusals are in plain words, e.g. "Satara TMT Bars is already offered to or held by Bala Traders. End that first."
+- **`offer_territory(brand, distributor, family, area, type, manufacturer)`:** the brand's owner offers (an admin may offer for him), for a family the brand covers. Refusals are in plain words, e.g. "You don't own Check Rods, so you cannot allocate it." or "Satara Check Steel TMT is already offered to or held by Bala Traders. End that first."
 - **`change_territory_type(allocation, type)`:** the manufacturer changes the type, only while it's an offer.
 - **`respond_to_territory(allocation, accept)`:** the distributor accepts or declines.
 - **`end_territory(allocation)`:** either side ends an active allocation; the manufacturer can withdraw an offer. The manufacturer's own rate then shows again there, if he serves it.
 
-**`resolve_territory(manufacturer, family, buyer's area)`** is the one lookup the rate engine uses.
+**`resolve_territory(brand, family, buyer's area)`** finds the allocation in effect. Only allocations made by the brand's **current** owner count.
+
+**`territory_effect(seller, brand, family, buyer's area)`** is what the rate engine checks first, for every seller it shows:
+
+| Effect | When | What the buyer sees |
+|---|---|---|
+| `pointed_to_distributor` | The seller is the brand's owner or one of its factories, and the area is Type A | Not his rate; pointed to the distributor |
+| `shown_with_tag` | The owner or a factory, and Type B | His rate, tagged "Authorised distributor for [area]: [distributor]" |
+| `hidden` | He is the appointed distributor, and Type B | Not his rate for that brand there; his other brands are unaffected |
+| `none` | Anyone else, or no allocation | His own rate as usual |
+
+About `resolve_territory`:
 - **Single query:** it returns the allocation in effect closest to the buyer (to whom, which type, for which area), or nothing.
 - **Public, and no rates:** anyone can call it, and it never returns a rate.
 

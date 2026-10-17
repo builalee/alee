@@ -11,7 +11,9 @@
 -- route; history and allocations cannot be changed or deleted.
 -- Tables: territory_allocations, territory_allocation_events.
 -- Functions: offer_territory, change_territory_type, respond_to_territory,
--- end_territory, resolve_territory.
+-- end_territory, resolve_territory, territory_effect.
+-- Territory is per brand (decisions 2.43): M owns Check Steel (TMT and
+-- Angles) and allocates it. Check Rods has no owner.
 --
 -- Test people (temporary logins, rolled back):
 --   M  ...a1  manufacturer: TMT and MS Angles; serves all of Maharashtra
@@ -64,8 +66,22 @@ select 'Check Satara City', 'city', id, true from regions where level = 'distric
 insert into regions (name, level, parent_id, is_approved)
 select 'Check Unapproved', 'city', id, false from regions where level = 'district' and name = 'Satara';
 
+-- M owns Check Steel, claimed and approved the normal way.
+insert into brands (name, status) values ('Check Steel', 'approved'), ('Check Rods', 'approved');
+insert into brand_families (brand_id, segment_id)
+select b.id, s.id from brands b, segments s
+ where (b.name = 'Check Steel' and s.name in ('TMT Bars', 'MS Angles')) or (b.name = 'Check Rods' and s.name = 'TMT Bars');
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select claim_brand((select id from brands where name = 'Check Steel'));
+select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
+select decide_brand_claim(id, true) from brand_claims where brand_id = (select id from brands where name = 'Check Steel');
+select pg_temp.as_owner();
+
 create temp table k as
 select (select id from segments where name = 'TMT Bars') as tmt,
+       (select id from brands where name = 'Check Steel') as steel,
+       (select id from brands where name = 'Check Rods') as rods,
+       (select id from brands where is_regular) as regular,
        (select id from segments where name = 'MS Angles') as angles,
        (select id from segments where name = 'MS Channels') as channels,
        (select id from regions where level = 'state' and name = 'Maharashtra') as mh,
@@ -101,7 +117,7 @@ grant select on d1 to public;
 create function pg_temp.who(p_segment uuid, p_region uuid)
 returns text language sql as $$
   select coalesce((select t.distributor_name || ', ' || t.allocation_type || ', for ' || t.area_name
-                     from resolve_territory('00000000-0000-0000-0000-0000000000a1', p_segment, p_region) t),
+                     from resolve_territory((select steel from k), p_segment, p_region) t),
                   'no allocation')
 $$;
 
@@ -119,7 +135,7 @@ select pg_temp.expect_value('Nothing about territory holds a rate, amount or mar
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select pg_temp.expect_value('M offers Satara TMT to D1, D1 to set the price', 'offered',
-  $q$select case when offer_territory('00000000-0000-0000-0000-0000000000b2', (select tmt from k), (select satara from k),
+  $q$select case when offer_territory((select steel from k), '00000000-0000-0000-0000-0000000000b2', (select tmt from k), (select satara from k),
                                       'distributor_prices') is not null then 'offered' end$q$);
 select pg_temp.expect_value('An offer has no effect: a Satara buyer belongs to nobody yet', 'no allocation',
   $q$select pg_temp.who((select tmt from k), (select satara_city from k))$q$);
@@ -165,10 +181,10 @@ select pg_temp.expect_value('Visitors can use the lookup', 'Bala Traders, distri
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select pg_temp.expect_message('A second distributor cannot be given Satara TMT',
-  'Satara TMT Bars is already offered to or held by Bala Traders. End that first.',
-  $q$select offer_territory('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select satara from k), 'distributor_prices')$q$);
+  'Satara Check Steel TMT is already offered to or held by Bala Traders. End that first.',
+  $q$select offer_territory((select steel from k), '00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select satara from k), 'distributor_prices')$q$);
 select pg_temp.expect_value('Satara angles can go to a different distributor (D2, M sets the price)', 'offered',
-  $q$select case when offer_territory('00000000-0000-0000-0000-0000000000d4', (select angles from k), (select satara from k),
+  $q$select case when offer_territory((select steel from k), '00000000-0000-0000-0000-0000000000d4', (select angles from k), (select satara from k),
                                       'manufacturer_prices') is not null then 'offered' end$q$);
 
 select pg_temp.as_owner();
@@ -185,13 +201,13 @@ select pg_temp.expect_value('A decline leaves no allocation', 'no allocation',
 select pg_temp.expect_refused('D2 accepts after declining', $q$select respond_to_territory((select id from t2), true)$q$);
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select pg_temp.expect_value('After a decline M can offer Satara angles again', 'offered',
-  $q$select case when offer_territory('00000000-0000-0000-0000-0000000000d4', (select angles from k), (select satara from k),
+  $q$select case when offer_territory((select steel from k), '00000000-0000-0000-0000-0000000000d4', (select angles from k), (select satara from k),
                                       'manufacturer_prices') is not null then 'offered' end$q$);
 
 -- The closer area wins ------------------------------------------------------------------
 
 select pg_temp.expect_value('M offers Karad taluka TMT to D2, M sets the price', 'offered',
-  $q$select case when offer_territory('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select karad from k),
+  $q$select case when offer_territory((select steel from k), '00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select karad from k),
                                       'manufacturer_prices') is not null then 'offered' end$q$);
 select pg_temp.as_owner();
 create temp table t3 as select id from territory_allocations
@@ -208,7 +224,7 @@ select pg_temp.expect_value('Elsewhere in Satara still belongs to D1', 'Bala Tra
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select pg_temp.expect_value('M offers Pune TMT to D2 (D2 sets the price)', 'offered',
-  $q$select case when offer_territory('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select pune from k),
+  $q$select case when offer_territory((select steel from k), '00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select pune from k),
                                       'distributor_prices') is not null then 'offered' end$q$);
 select pg_temp.as_owner();
 create temp table t4 as select id from territory_allocations
@@ -229,25 +245,25 @@ select pg_temp.expect_message('Once accepted, the type cannot be changed',
 -- What an offer refuses -------------------------------------------------------------------
 
 select pg_temp.expect_message('Allocating to himself', 'You cannot allocate an area to yourself.',
-  $q$select offer_territory('00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select mh from k), 'distributor_prices')$q$);
-select pg_temp.expect_message('A family M does not sell', 'You don''t sell MS Channels yet, so you cannot allocate it.',
-  $q$select offer_territory('00000000-0000-0000-0000-0000000000b2', (select channels from k), (select satara from k), 'distributor_prices')$q$);
+  $q$select offer_territory((select steel from k), '00000000-0000-0000-0000-0000000000a1', (select tmt from k), (select mh from k), 'distributor_prices')$q$);
+select pg_temp.expect_message('A family the brand is not listed for', 'Check Steel is not listed for MS Channels.',
+  $q$select offer_territory((select steel from k), '00000000-0000-0000-0000-0000000000b2', (select channels from k), (select satara from k), 'distributor_prices')$q$);
 select pg_temp.expect_message('An unapproved area', 'That area is not available.',
-  $q$select offer_territory('00000000-0000-0000-0000-0000000000b2', (select tmt from k), (select unapproved from k), 'distributor_prices')$q$);
+  $q$select offer_territory((select steel from k), '00000000-0000-0000-0000-0000000000b2', (select tmt from k), (select unapproved from k), 'distributor_prices')$q$);
 select pg_temp.expect_message('To someone who is not a seller', 'That distributor is not a seller on ALEE.',
-  $q$select offer_territory('00000000-0000-0000-0000-0000000000e5', (select tmt from k), (select pune from k), 'distributor_prices')$q$);
+  $q$select offer_territory((select steel from k), '00000000-0000-0000-0000-0000000000e5', (select tmt from k), (select pune from k), 'distributor_prices')$q$);
 
 -- Who may do what ---------------------------------------------------------------------------
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000b2');
 select pg_temp.expect_refused('A distributor offers M''s territory',
-  $q$select offer_territory('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select mh from k),
+  $q$select offer_territory((select steel from k), '00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select mh from k),
                             'distributor_prices', '00000000-0000-0000-0000-0000000000a1')$q$);
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000e5');
 select pg_temp.expect_refused('A buyer ends an allocation', $q$select end_territory((select id from t1))$q$);
 select pg_temp.as_visitor();
 select pg_temp.expect_refused('A visitor offers territory',
-  $q$select offer_territory('00000000-0000-0000-0000-0000000000b2', (select tmt from k), (select mh from k), 'distributor_prices')$q$);
+  $q$select offer_territory((select steel from k), '00000000-0000-0000-0000-0000000000b2', (select tmt from k), (select mh from k), 'distributor_prices')$q$);
 
 -- Who sees what ----------------------------------------------------------------------------
 
@@ -315,7 +331,7 @@ select pg_temp.expect_value('Karad city now belongs to nobody', 'no allocation',
 select pg_temp.expect_message('An ended allocation cannot be ended again', 'This allocation has already finished (ended).',
   $q$select end_territory((select id from t1))$q$);
 select pg_temp.expect_value('After ending, Satara TMT can be offered again', 'offered',
-  $q$select case when offer_territory('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select satara from k),
+  $q$select case when offer_territory((select steel from k), '00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select satara from k),
                                       'distributor_prices') is not null then 'offered' end$q$);
 select pg_temp.expect_value('M withdraws that offer before it is accepted', 'withdrawn',
   $q$select end_territory(id)::text from territory_allocations
@@ -326,7 +342,7 @@ select pg_temp.expect_value('M withdraws that offer before it is accepted', 'wit
 
 select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
 select pg_temp.expect_value('Admin offers Satara TMT to D1 for M', 'offered',
-  $q$select case when offer_territory('00000000-0000-0000-0000-0000000000b2', (select tmt from k), (select satara from k),
+  $q$select case when offer_territory((select steel from k), '00000000-0000-0000-0000-0000000000b2', (select tmt from k), (select satara from k),
                                       'distributor_prices', '00000000-0000-0000-0000-0000000000a1') is not null then 'offered' end$q$);
 select pg_temp.expect_value('Admin accepts it for D1', 'active',
   $q$select respond_to_territory(id, true)::text from territory_allocations
@@ -368,3 +384,66 @@ select pg_temp.expect_refused('Even with the master key: give an allocation to a
   $q$update territory_allocations set distributor_id = '00000000-0000-0000-0000-0000000000b2' where id = (select id from t3)$q$);
 select pg_temp.expect_refused('Even with the master key: turn a decline into an acceptance',
   $q$update territory_allocations set status = 'active' where id = (select id from t2)$q$);
+
+-- What territory does to each seller's rate (per brand) ---------------------------------
+-- At this point: Satara TMT is held by D1 under Type A (offered by the admin
+-- for M); Pune TMT is held by D2 under Type B. G becomes a factory of Check
+-- Steel. D2 also sells Regular TMT.
+
+insert into auth.users (id, phone, aud, role)
+values ('00000000-0000-0000-0000-0000000000a7', '919800000007', 'authenticated', 'authenticated');
+insert into accounts (id, full_name, phone, signup_role, region_id)
+select '00000000-0000-0000-0000-0000000000a7', 'Gita', '+919800000007', 'manufacturer', id
+  from regions where level = 'district' and name = 'Satara';
+insert into seller_profiles (account_id, store_name, region_id, is_public, market_close_time)
+select '00000000-0000-0000-0000-0000000000a7', 'Gita Steel Works', id, true, '18:00'
+  from regions where level = 'district' and name = 'Satara';
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select offer_factory_link((select steel from k), '00000000-0000-0000-0000-0000000000a7');
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a7');
+select respond_to_factory_link(id, true) from brand_factories where factory_id = '00000000-0000-0000-0000-0000000000a7';
+
+create function pg_temp.effect(p_seller uuid, p_brand uuid, p_region uuid) returns text language sql as $$
+  select e.effect || coalesce(' (' || e.distributor_name || ' for ' || e.area_name || ')', '')
+    from territory_effect(p_seller, p_brand, (select tmt from k), p_region) e
+$$;
+
+select pg_temp.as_visitor();
+select pg_temp.expect_value('Type B, the owner M in Pune: his rate shown with the tag', 'shown_with_tag (Dev Distributors for Pune)',
+  $q$select pg_temp.effect('00000000-0000-0000-0000-0000000000a1', (select steel from k), (select pune from k))$q$);
+select pg_temp.expect_value('Type B, M''s factory G in Pune: shown with the tag', 'shown_with_tag (Dev Distributors for Pune)',
+  $q$select pg_temp.effect('00000000-0000-0000-0000-0000000000a7', (select steel from k), (select pune from k))$q$);
+select pg_temp.expect_value('Type B, the distributor D2 in Pune: his Check Steel rate hidden', 'hidden (Dev Distributors for Pune)',
+  $q$select pg_temp.effect('00000000-0000-0000-0000-0000000000d4', (select steel from k), (select pune from k))$q$);
+select pg_temp.expect_value('...but D2''s other brands are unaffected (Regular TMT)', 'none',
+  $q$select pg_temp.effect('00000000-0000-0000-0000-0000000000d4', (select regular from k), (select pune from k))$q$);
+select pg_temp.expect_value('Another seller of Check Steel in Pune (D1) is unaffected', 'none (Dev Distributors for Pune)',
+  $q$select pg_temp.effect('00000000-0000-0000-0000-0000000000b2', (select steel from k), (select pune from k))$q$);
+select pg_temp.expect_value('Type A, the owner M in Satara: pointed to the distributor', 'pointed_to_distributor (Bala Traders for Satara)',
+  $q$select pg_temp.effect('00000000-0000-0000-0000-0000000000a1', (select steel from k), (select satara_city from k))$q$);
+select pg_temp.expect_value('Type A, M''s factory G in Satara: pointed to the distributor', 'pointed_to_distributor (Bala Traders for Satara)',
+  $q$select pg_temp.effect('00000000-0000-0000-0000-0000000000a7', (select steel from k), (select satara_city from k))$q$);
+select pg_temp.expect_value('Type A, the distributor D1 in Satara: shows his own rate', 'none (Bala Traders for Satara)',
+  $q$select pg_temp.effect('00000000-0000-0000-0000-0000000000b2', (select steel from k), (select satara_city from k))$q$);
+select pg_temp.expect_value('No allocation (North Goa): no effect', 'none',
+  $q$select pg_temp.effect('00000000-0000-0000-0000-0000000000a1', (select steel from k),
+       (select id from regions where level = 'district' and name = 'North Goa'))$q$);
+
+-- Only a brand's owner allocates it ----------------------------------------------------
+
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select pg_temp.expect_message('M allocates a brand he does not own', 'You don''t own Check Rods, so you cannot allocate it.',
+  $q$select offer_territory((select rods from k), '00000000-0000-0000-0000-0000000000b2', (select tmt from k), (select pune from k), 'distributor_prices')$q$);
+select pg_temp.expect_message('M allocates Regular', 'You don''t own Regular, so you cannot allocate it.',
+  $q$select offer_territory((select regular from k), '00000000-0000-0000-0000-0000000000b2', (select tmt from k), (select pune from k), 'distributor_prices')$q$);
+
+select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
+select end_brand_ownership((select steel from k));
+select pg_temp.as_visitor();
+select pg_temp.expect_value('After M no longer owns Check Steel, his allocations stop counting', 'no allocation',
+  $q$select pg_temp.who((select tmt from k), (select pune from k))$q$);
+select pg_temp.expect_value('...and D2''s Check Steel rate is no longer hidden in Pune', 'none',
+  $q$select pg_temp.effect('00000000-0000-0000-0000-0000000000d4', (select steel from k), (select pune from k))$q$);
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select pg_temp.expect_message('...and M can no longer allocate it', 'You don''t own Check Steel, so you cannot allocate it.',
+  $q$select offer_territory((select steel from k), '00000000-0000-0000-0000-0000000000b2', (select tmt from k), (select mh from k), 'distributor_prices')$q$);
