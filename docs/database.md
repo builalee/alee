@@ -208,6 +208,11 @@ Which brands each seller sells, per product family, e.g. *Bala Traders – Tata 
 - **What can be added:** only an approved brand that covers the family, in a family the seller deals in. Refusals are in plain words: "Check Tiscon is not listed for MS Angles."
 - **No owner needed:** any seller can sell any approved brand, even one with no owner on ALEE.
 - **Who sees and changes:** anyone sees active brand lines. The seller and admins add and change them.
+- **Copying a brand's setup (step 7):** `copy_brand_setup(family, from brand, to brand, seller)` makes one brand line's grades, sizes and area settings match another's in one call.
+  - **Shared charts:** the copy points at the same charts, which are shared rather than duplicated.
+  - **Zero and not set:** "not set" and zero are kept apart.
+  - **Unit changes:** if his unit for the family changed since the source was saved, amounts are converted exactly or the copy is refused.
+  - **Afterwards:** the two brands are separate. Copying again overwrites the target, and its old versions are kept.
 - **Transitional (decisions 2.44, removed in step 11):** adding a product family automatically adds a **Regular** brand line for it, so everything built before brands keeps working. Existing sellers' families were carried across as Regular lines.
 - **Checks:** `tests/database/seller_brands.sql`.
 
