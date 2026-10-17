@@ -161,7 +161,9 @@ final rate = base rate + grade premium + size difference + loading + area differ
 ### Critical correctness rules
 - **Zero is a real value, not absence.** A difference of ₹0 means "same as base". It must never fall through to a less specific level. Test this explicitly.
 - **A seller offers only what he has selected.** Within each product family he chooses his grades and sizes. Anything not selected is "not offered" and must never be quoted. Sizes switched on in the catalogue later start unselected.
-- **A selected size with no figure in the size chart is an error, never zero.** Publishing flags it (using `size_chart_missing_figures`) and leaves that size out until it is fixed. The rate engine must never quote it.
+- **Size differences and loading are looked up one size at a time.** For each size, the closest area with a figure for that size wins: city, taluka, district, state, everywhere. An area only needs the sizes that differ. At each area a grade's own size chart is looked at before the family chart. Use `resolve_size_figures`; never pick one chart for all sizes.
+- **A selected size with no figure in any applicable area is an error, never zero.** Publishing flags it (`resolve_size_figures` marks it `is_missing`) and leaves that size out until it is fixed. The rate engine must never quote it.
+- **The more specific area wins**, for whether an area is served too: a city a seller names inside a district he excluded is served.
 - A seller may publish one flat rate with no area configuration at all. This is a distinct mode and must not resolve as "not served".
 - Resolution must be a single indexed query, not a loop of separate lookups.
 
@@ -192,6 +194,7 @@ Example: Maharashtra → Chart A, +₹200. Pune → +₹300 (inherits Chart A). 
 
 - Sellers can hold multiple named charts of each type.
 - **The structure is fully flexible; the screens stay simple.** A seller with one chart never sees chart-assignment options. They appear only when he creates a second chart.
+- **The area setup screen shows coverage in plain words**, for example "Kolhapur district: not served, except Kolhapur city", so a seller sees at a glance where he actually serves.
 - On a public profile, a visitor sees only the charts applying to his own area.
 - ALEE ships **template charts** for common configurations. A template is **copied** into the seller's own chart, never linked. Changing a template must never change any seller's existing rates.
 
@@ -349,6 +352,7 @@ Each engine is built once, tested thoroughly, and used everywhere. Screens never
 - A difference of ₹0 is used, not skipped
 - A grade or size the seller has not selected is not offered
 - A selected size with no size-chart figure is left out and flagged, never quoted at zero
+- Size differences resolve per size: Maharashtra 8mm +6500, 10/12mm +5500 with Satara 10/12mm +5000 gives a Satara buyer 8mm +6500 and 10/12mm +5000
 - Flat-rate seller with no area configuration is served everywhere he sells
 - Different charts in different areas of the same state
 - Discount as a flat amount and as a percentage

@@ -165,7 +165,7 @@ Ratings, AI suggestions, market averages, open bidding, dashboards and similar f
 - **A missing figure is an error:** if a seller has selected a size but his size chart has no figure for it, that is an error, not zero. The rate engine must never treat it as zero. Publishing must flag it and leave that size out until it is fixed.
 
 **Why:** A seller who doesn't stock 32mm must never appear to quote it. Making him choose, rather than assuming everything, means ALEE only ever shows what he actually sells. A missing figure treated as zero would quote that size at the base rate, a wrong rate nobody notices until a buyer orders it. Leaving the size out and flagging it is safe; guessing is not.
-**How:** `size_chart_missing_figures` is the single check that lists selected sizes with no figure. Publishing and the rate engine must both use it.
+**How:** `resolve_size_figures` lists, for a buyer's area, every size the seller offers that has no figure in any applicable area (2.22). Publishing and the rate engine must both use it. *(Originally `size_chart_missing_figures`, which judged one chart on its own; superseded 2026-10-17.)*
 
 ### 2.18 Copying a template converts into the seller's unit
 **Decision (2026-10-17):** When a seller copies a template, his copy is saved in the unit he prices that product family in. A per-tonne template copied by a per-kg seller becomes per kg: ₹6,500 per tonne becomes ₹6.50 per kg. Flat discounts convert the same way; percentages don't change. A seller must deal in the template's product family to copy it.
@@ -204,12 +204,40 @@ An area is a state, district, taluka or city, or **"everywhere"**, a level above
 - **Territory allocation** (not built yet) will be checked before any of this.
 
 **How:**
-- **One lookup:** `resolve_area_settings` is the one place this lookup happens, in a single query. The rate engine must use it, never repeat it.
+- **One lookup:** `resolve_area_settings` is the one place this lookup happens, in a single query. The rate engine must use it, never repeat it. Size differences and loading are looked up per size instead (2.22).
 - **Mistyped settings:** a misspelt setting name is refused when saving, so a typo can never silently become "not set".
-- **Choices made in building it (see open questions):**
-  - Whether an area is served is decided by the most specific area the seller has mentioned for that buyer. So a city the seller names inside an excluded district is served.
-  - A grade's own size chart beats the family size chart *at the same area*. A more specific area's chart beats a broader one, whether family or grade.
-  - A grade is sold in an area unless set "not sold" there or above. The rate engine must also check the seller has selected the grade (2.17).
+- **A grade is sold** in an area unless set "not sold" there or above. The rate engine must also check the seller has selected the grade (2.17).
+- **Settled by the owner (2026-10-17): the more specific area wins.**
+  - **Served or not** is decided by the most specific area the seller has mentioned for that buyer. A city the seller names inside an excluded district is served: "Kolhapur district: not served, except Kolhapur city".
+  - **A grade's own size chart** is looked at before the family size chart *at the same area*. A closer area still beats a broader one, whether its figure comes from the family chart or a grade chart (detail in 2.22).
+  - **Why the grade chart is the exception:** in TMT, a better grade is normally priced as a **grade premium on top of the shared size difference**, so most sellers will never give a grade its own size chart. Where a region does price each grade's sizes separately, the grade chart is there.
+
+### 2.22 Size differences are looked up one size at a time
+**Decision (2026-10-17):** An area only needs the sizes that differ. For each size, the closest area that has a figure for that size wins: city, taluka, district, state, everywhere.
+
+**Example:**
+- Maharashtra: 8mm +6,500, 10mm and 12mm +5,500.
+- Satara: only 10mm and 12mm, at +5,000.
+- **A Satara buyer gets** 8mm +6,500 from Maharashtra, and 10mm and 12mm +5,000 from Satara.
+
+**Rules:**
+- **Zero is a real figure** and never carries down: Pune 8mm 0 stays 0.
+- **A size the seller offers with no figure anywhere is an error, never zero** (2.17). It is flagged and left out.
+- **A grade's own size chart:** at each area, closest first, look in the grade's own chart, then in that area's family chart. Only if neither has the size, move up to the next area.
+  - So in Satara, Fe550D 12mm comes from Satara's Fe550D chart, 10mm from Satara's family chart, and 8mm from Maharashtra's Fe550D chart if it has one, otherwise Maharashtra's family chart.
+  - A family figure in a closer area beats a grade figure in a broader area.
+- **Loading** follows the same per-size rule. At each area, a loading chart's figure for that size is used if it has one, otherwise its "all sizes" figure. Every loading chart has an "all sizes" figure, so the closest area with a loading chart always answers for every size: a Satara loading chart of 200 for all sizes gives 32mm 200, even if Maharashtra's chart says 300 for 32mm.
+
+**Why:** A seller who charges Satara ₹500 less on two sizes should change two figures, not copy the whole chart. Copying would leave the other sizes stale the next time he changes Maharashtra.
+
+**How:**
+- **One lookup:** `resolve_size_figures` is the one place this happens. For every size it reports the figure, where it came from, and whether an offered size is missing a figure. The rate engine and publishing must use it.
+- **Removed:** the earlier check `size_chart_missing_figures` judged one chart on its own, and would wrongly flag Satara's chart for not repeating Maharashtra's 8mm.
+- **Latest chart versions:** each chart's latest version is used. A publish must record the chart versions it used, so a historical rate rebuilds exactly (4.1).
+
+### 2.23 The area setup screen shows coverage in plain words
+**Decision (2026-10-17), for the future setup screen:** it must show a plain coverage summary of where the seller serves, for example **"Kolhapur district: not served, except Kolhapur city"**.
+**Why:** Most-specific-wins (2.21) makes exceptions possible inside exceptions. A seller must be able to see at a glance where he actually serves, without working it out from a list of areas.
 
 ---
 
@@ -329,6 +357,7 @@ An area is a state, district, taluka or city, or **"everywhere"**, a level above
 | ~~A size with no figure in a size chart~~ | **Resolved 2026-10-17, see 2.17.** Sellers select the sizes they offer. A selected size with no figure is an error, never zero: publishing flags it and leaves that size out until fixed. |
 | Admins editing sellers' charts (proposed 2026-10-17) | Admins can create and change any seller's chart and copy templates for a seller, to match setting up the first sellers personally. Admin reads must also be logged (6.5) once the API layer exists. Confirm. |
 | ~~Template copies keep the template's unit (proposed 2026-10-17)~~ | **Superseded 2026-10-17 by 2.18:** copies are converted into the seller's unit. Converting a seller's existing charts when he later changes his unit (2.8) is still to be built. |
-| A served city inside an excluded district (2026-10-17) | Built as "most specific wins": if a seller excludes Kolhapur district but names Kolhapur city with its own settings, Kolhapur city is served. The alternative is that an exclusion covers everything inside it, and a city inside cannot be served. Confirm which. |
-| Grade size chart vs family size chart across levels (2026-10-17) | Built as: at the same area a grade's chart beats the family chart, and a more specific area beats a broader one. So a district family chart overrides a state grade chart. Confirm. |
+| ~~A served city inside an excluded district~~ | **Settled 2026-10-17, see 2.21:** the more specific area wins, so the city is served. The setup screen shows it plainly (2.23). |
+| ~~Grade size chart vs family size chart across levels~~ | **Settled 2026-10-17, see 2.21 and 2.22:** the closer area wins; at the same area the grade's chart is looked at first. In TMT a better grade is normally a premium on the shared size difference, so a grade's own chart is the exception. |
+| No loading chart anywhere for a buyer's area (2026-10-17) | If a seller sets no loading chart in any area covering a buyer, the lookup returns no loading. Undecided: does that mean "no loading charged" or is it an error to flag, like a missing size figure? Must be settled before the rate engine. |
 | Limits on chart figures (proposed 2026-10-17) | A flat discount cannot be negative. Loading and size figures may be any sign. Confirm whether loading should also be barred from going negative. |

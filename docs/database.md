@@ -250,7 +250,7 @@ Figures are written only by two functions, so a version is always complete when 
 - **`copy_template(template, name, seller)`** copies an active template's latest version into a new chart owned by the seller. It records which template it came from. Later changes to the template never reach the copy. A seller copies for himself; an admin may copy for any seller.
   - **Converted into the seller's unit:** the seller must deal in the template's product family. The copy is saved in his unit for that family: ₹6,500/tonne becomes ₹6.5/kg; flat discounts convert the same way; percentages don't change.
   - **Exact or refused:** if any figure can't be converted exactly to 4 decimal places, the whole copy is refused and nothing is left behind.
-- **`size_chart_missing_figures(chart)`** lists the sizes the seller has selected (see below) that the size chart's latest version has no figure for. **A missing figure is an error, never zero.** Publishing and the rate engine must use this check, flag what it lists, and leave those sizes out until fixed. A figure of 0 counts as present.
+- **Which figure applies to a buyer** is worked out per size by `resolve_size_figures` (see area settings below). A size chart only needs the sizes that differ for its area.
 
 ### Who can see and change charts
 - **Seller:** sees and changes only his own charts. Another seller gets nothing back, even when asking for a chart by its id.
@@ -347,19 +347,25 @@ An area the version doesn't mention has no row; everything carries down to it fr
   - A misspelt setting name is refused, so a typo can never become "not set".
   - An empty list means the seller serves nowhere.
   - A seller saves his own; an admin may save for any seller.
-- **`resolve_area_settings(seller, family, area, grade, version)`** is the one place settings are looked up, in a single query. It uses the latest version unless one is given.
+- **`resolve_area_settings(seller, family, area, grade, version)`** looks up the settings that apply to the whole area: served or not, area difference, discount chart, display unit, grade premium, and whether the grade is sold. One query; latest version unless one is given.
   - **Order:** each setting is looked up separately, most specific first: city, taluka, district, state, everywhere. The first value actually set wins, so 0 is used and never skipped.
-  - **Served:** decided by the most specific area the seller mentioned. An exclusion there beats any broader area, including "everywhere". Nothing mentioned means not served.
+  - **Served:** decided by the most specific area the seller mentioned. An exclusion there beats any broader area, including "everywhere". Nothing mentioned means not served. A city named inside an excluded district is served.
   - **Not served:** every setting comes back empty, so nothing is revealed.
-  - **Grade size chart:** at the same area it beats the family size chart.
-  - **Whose settings:** today only the seller and admins can look up his settings. The rate engine will call it for buyers and return only the final rate. Territory allocation (not built yet) will be checked before it.
+  - **No size or loading figures:** it deliberately returns none; those are per size.
+- **`resolve_size_figures(seller, family, area, grade, version)`** looks up size differences and loading **one size at a time**. It returns one row per size switched on in the family, and no rows if the area isn't served.
+  - **Size difference:** for each size, closest area first. At each area, the grade's own size chart is looked at first (if that area gives the grade one), then the area's family size chart. The first figure found wins. Example: Maharashtra 8mm 6,500, 10mm/12mm 5,500; Satara 10mm/12mm 5,000 → a Satara buyer gets 8mm 6,500 (Maharashtra) and 10mm/12mm 5,000 (Satara).
+  - **Loading:** for each size, the closest area with a loading chart answers. It uses that chart's figure for the size, or else its all-sizes figure.
+  - **For each size it reports** the figure, its unit (the chart's), where it came from (area name or "everywhere"), whether it came from the grade's chart or the family chart, and whether the seller offers the size.
+  - **`is_missing`:** marks a size the seller offers that has no figure anywhere. **That is an error, never zero:** publishing must flag it and leave the size out.
+  - **Chart versions:** each chart's latest version is used. A publish must record which chart versions it used.
+- **Whose settings:** today only the seller and admins can use either lookup. The rate engine will call them for buyers and return only the final rate. Territory allocation (not built yet) will be checked first.
 
 ### Who can see and change
 - **Seller:** reads and saves only his own.
 - **Admins:** read and save any seller's.
 - **Everyone else** (other sellers, buyers, visitors): reads nothing and cannot look settings up.
 - **Never changed, never deleted:** no one can change, add to or delete a saved version, not even the database owner. A seller's settings go only when his whole account is deleted.
-- **Checks:** `tests/database/area_settings.sql`.
+- **Checks:** `tests/database/area_settings.sql` (settings, privacy, versions) and `tests/database/size_figures.sql` (per-size figures, the Maharashtra/Satara example).
 
 ---
 
@@ -388,7 +394,8 @@ An area the version doesn't mention has no row; everything carries down to it fr
 These appear in CLAUDE.md but have no tables yet:
 
 - territory allocation (will be checked before area settings)
-- the rate engine itself (it will use `resolve_area_settings`, `size_chart_missing_figures` and `convert_per_unit`)
+- the rate engine itself (it will use `resolve_area_settings`, `resolve_size_figures` and `convert_per_unit`)
+- the area setup screen (it must show a plain coverage summary, e.g. "Kolhapur district: not served, except Kolhapur city")
 - rates and publishing history (which will set `charts.in_use_since`)
 - subscriptions, enquiries, orders, bills
 - client book
