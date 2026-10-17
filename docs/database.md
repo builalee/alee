@@ -350,7 +350,11 @@ No loading template is shipped; each seller enters his own loading (decisions 2.
 
 ## Area: what each seller offers
 
-Within each product family he deals in, a seller explicitly chooses which grades and which sizes he sells. **Nothing is selected by default, and anything not selected is "not offered" to his buyers.**
+For each brand he sells in a product family (each brand line), a seller explicitly chooses which grades and which sizes he sells. **Nothing is selected by default, and anything not selected is "not offered" to his buyers.**
+
+- **One brand at a time:** every choice, and every history entry, carries the brand (`brand_id`). Choices for one brand never affect another.
+- **Needs an active brand line:** choosing requires one ("Add Check Rods to the brands you sell first."). Unselecting is always allowed.
+- **Transitional (until brands step 11):** a choice saved without a brand, and "select all" without one, mean Regular.
 
 ### `seller_grades` and `seller_sizes` — his current choices
 One row per seller per grade (`product_id`) or per size (`size_id`).
@@ -362,7 +366,7 @@ One row per seller per grade (`product_id`) or per size (`size_id`).
 | `is_selected` | Offered or not. **No row, or `false`, means not offered.** Unselecting sets `false`; rows are never deleted. |
 
 - **What can be selected:** only active grades and sizes, in a product family the seller currently deals in. Unselecting is always allowed.
-- **Select all:** `select_all_in_family(family, 'grades' or 'sizes', selected, seller)` selects or unselects every grade or size of one family. It returns how many choices changed.
+- **Select all:** `select_all_in_family(family, 'grades' or 'sizes', selected, seller, brand)` selects or unselects every grade or size of one family, for one brand. It returns how many choices changed.
 - **New sizes:** "select all" covers what is switched on in the catalogue now. A size switched on later starts unselected for every seller.
 - **Who can see:** anyone sees what a seller offers (selected rows only). The seller and admins see all his choices.
 - **Who can change:** the seller changes his own; admins can change any seller's, to set sellers up.
