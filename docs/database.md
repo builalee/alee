@@ -469,11 +469,11 @@ One action by a seller, covering one or more product families, so buyers get one
 | `published_by`, `by_admin` | The login that published: the seller, or an admin on his behalf during setup. |
 | `is_correction`, `corrects_publish_id` | Marks a publish that corrects an earlier one, optionally naming which (always the seller's own). The earlier one stays, unchanged. |
 
-### `publish_items` — one per product family in a publish
+### `publish_items` — one per brand line in a publish
 
 | Field | Meaning |
 |---|---|
-| `segment_id` | The product family. |
+| `brand_id`, `segment_id` | The brand and product family (the brand line). One publish can cover many brands and families, and is still one notification. |
 | `base_rate` | The seller's basic rate: exact rupees, above zero. **Private.** |
 | `unit` | `tonne` or `kg`: the seller's unit for the family at the time. |
 | `area_setting_version_id` | The area-settings version in force. |
@@ -481,7 +481,7 @@ One action by a seller, covering one or more product families, so buyers get one
 ### `publish_chart_versions` — the exact chart versions used
 One row per chart that the area settings pointed to, pinned to the version that was latest at the moment of publishing. With the area-settings version, this lets any past rate be rebuilt exactly.
 
-### `seller_family_status` — the current state per seller and family
+### `seller_family_status` — the current state per brand line (seller, brand, family)
 **Public; holds no rate.**
 
 | Field | Meaning |
@@ -494,19 +494,21 @@ One row per chart that the area settings pointed to, pinned to the version that 
 `stopped_quoting`, `resumed_quoting` or `closed_early`, with when it happened, who did it and whether it was an admin. Add-only; seen by the seller and admins.
 
 ### How publishing works
-- **`publish_rates(items, is_correction, corrects, seller)`** is the only way to publish.
+- **`publish_rates(items, is_correction, corrects, seller)`** is the only way to publish. Each item is `{segment_id, brand_id, base_rate}`; the seller must sell that brand there, and each brand line appears once. Refusals name the brand: "Choose where you sell Check Rods TMT before publishing." (For Regular they name the family, "TMT Bars".) A problem on one brand line never blocks another.
   - **The seller must** have a daily closing time set.
   - **Each family must** be one the seller deals in, with area settings saved, and no switched-off chart in use. The rate must be above zero.
   - **Refusals are in plain words** naming the family, area and chart (decisions 2.32), e.g. "Satara still uses 'Old TMT rates', which you switched off. Choose a chart for Satara."
   - **What it does:** pins the versions, marks the charts used ("used since"), and updates the status. A new publish reopens a closed market and switches "not quoting" back on, recorded in the history.
   - **Who:** a seller publishes for himself; an admin may publish for any seller, recorded as such.
 - **Rebuilding a past rate:** `resolve_area_settings(..., version = the publish's area-settings version)` and `resolve_size_figures(..., publish)` give exactly what that publish used.
-- **`market_status(seller, family, at)`** is the one place open/closed is worked out. Anyone can call it. It answers `not_published`, `not_quoting`, `open` or `closed` (with the closing time), now or at any given moment.
+- **`market_status(seller, family, at, brand)`** is the one place open/closed is worked out. Anyone can call it. It answers `not_published`, `not_quoting`, `open` or `closed` (with the closing time), now or at any given moment.
   - **Closed** means that, after the latest publish, either the seller's daily closing time (Indian time) has passed or he pressed "close market now".
   - **Published after today's closing time:** it stays open until tomorrow's.
   - **Closing time required:** a seller needs one before his first publish (the setup screen pre-fills 6:00 PM). After publishing he can change it but not clear it, not even with the master key.
-- **`set_quoting(family, on/off, seller)`** is the "not quoting today" switch. Switching to the state it's already in records nothing.
-- **`close_market_now(families, seller)`** closes the given families now; if none are named, every family. Only families currently open are closed and recorded.
+- **`set_quoting(family, on/off, seller, brand)`** is the "not quoting today" switch. Switching to the state it's already in records nothing.
+- **`close_market_now(families, seller, brands)`** closes the given families and brands now; if none are named, every brand line he sells. Only families currently open are closed and recorded.
+
+**Brands:** until brands step 11, an item, switch or lookup without a brand means Regular. Publishing one brand line reopens and resumes only that line.
 
 ### Who can see and change
 - **Basic rates, publishes and pinned versions:** the seller and admins only. Other sellers, buyers and visitors get nothing, even asking the database directly. Buyers will only ever see their own final rate, through the rate engine.
