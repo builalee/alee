@@ -3,9 +3,10 @@
 -- Covers: carry-down from state to district and below; zero at district
 -- never replaced by the state figure; "not set" and zero stored
 -- differently; exclusion beating the state (and "everywhere"); "everywhere"
--- working only when explicitly chosen; grade premium, grade size chart and
--- grades not sold; old versions unchangeable; nobody but the seller and
--- admins can read settings (not buyers, not other sellers, not visitors).
+-- working only when explicitly chosen; grade premium and grades not sold;
+-- old versions unchangeable; nobody but the seller and admins can read
+-- settings (not buyers, not other sellers, not visitors). Size differences
+-- and loading per size: tests/database/size_figures.sql.
 -- Tables: area_setting_versions, area_settings, area_grade_settings.
 -- Functions: save_area_settings, resolve_area_settings.
 --
@@ -151,15 +152,11 @@ create function pg_temp.res(p_region uuid, p_grade uuid default null, p_version 
 returns text language sql as $$
   select case when r.is_served then 'served' else 'not served' end
       || ' | diff '     || coalesce(r.area_difference::text, '-')
-      || ' | size '     || coalesce(sc.name, '-')
-      || ' | loading '  || coalesce(lc.name, '-')
       || ' | discount ' || coalesce(dc.name, '-')
       || ' | unit '     || coalesce(r.display_unit::text, '-')
       || case when p_grade is null then '' else
            ' | premium ' || coalesce(r.grade_premium::text, '-') || ' | sold ' || coalesce(r.grade_sold_here::text, '-') end
     from resolve_area_settings('00000000-0000-0000-0000-0000000000a1', (select tmt from k), p_region, p_grade, p_version) r
-    left join charts sc on sc.id = r.size_chart_id
-    left join charts lc on lc.id = r.loading_chart_id
     left join charts dc on dc.id = r.discount_chart_id
 $$;
 
@@ -194,45 +191,44 @@ select pg_temp.expect_value('"Not set" and zero are stored differently: Pune 0, 
 -- Looking settings up (version 1) ---------------------------------------------
 
 select pg_temp.expect_value('Carry-down: Satara (not mentioned) gets everything from Maharashtra',
-  'served | diff 200 | size A sizes | loading A loading | discount A discount | unit tonne',
+  'served | diff 200 | discount A discount | unit tonne',
   $q$select pg_temp.res((select satara from k))$q$);
 select pg_temp.expect_value('Zero at district: Pune''s 0 is kept, not replaced by Maharashtra''s 200',
-  'served | diff 0 | size A sizes | loading A loading | discount A discount | unit tonne',
+  'served | diff 0 | discount A discount | unit tonne',
   $q$select pg_temp.res((select pune from k))$q$);
 select pg_temp.expect_value('Carry-down through every level: a city in Haveli in Pune gets 0 from Pune and kg from Haveli',
-  'served | diff 0 | size A sizes | loading A loading | discount A discount | unit kg',
+  'served | diff 0 | discount A discount | unit kg',
   $q$select pg_temp.res((select checkwadi from k))$q$);
 select pg_temp.expect_value('Exclusion beats the state: Kolhapur is not served, and nothing is revealed',
-  'not served | diff - | size - | loading - | discount - | unit -',
+  'not served | diff - | discount - | unit -',
   $q$select pg_temp.res((select kolhapur from k))$q$);
 select pg_temp.expect_value('A city the seller names inside excluded Kolhapur is served (most specific wins)',
-  'served | diff 50 | size A sizes | loading A loading | discount A discount | unit tonne',
+  'served | diff 50 | discount A discount | unit tonne',
   $q$select pg_temp.res((select kolhapur_city from k))$q$);
 select pg_temp.expect_value('No "everywhere" chosen: North Goa is not served',
-  'not served | diff - | size - | loading - | discount - | unit -',
+  'not served | diff - | discount - | unit -',
   $q$select pg_temp.res((select north_goa from k))$q$);
 
 select pg_temp.expect_value('Grade premium zero at Pune: Fe550D premium 0 is kept, not replaced by 300',
-  'served | diff 0 | size A sizes | loading A loading | discount A discount | unit tonne | premium 0 | sold true',
+  'served | diff 0 | discount A discount | unit tonne | premium 0 | sold true',
   $q$select pg_temp.res((select pune from k), (select fe550d from k))$q$);
 select pg_temp.expect_value('Grade premium carries down: Fe550D at Satara is 300',
-  'served | diff 200 | size A sizes | loading A loading | discount A discount | unit tonne | premium 300 | sold true',
+  'served | diff 200 | discount A discount | unit tonne | premium 300 | sold true',
   $q$select pg_temp.res((select satara from k), (select fe550d from k))$q$);
 select pg_temp.expect_value('Each setting separately: Fe500D at Pune takes premium 150 from Maharashtra but diff 0 from Pune',
-  'served | diff 0 | size A sizes | loading A loading | discount A discount | unit tonne | premium 150 | sold true',
+  'served | diff 0 | discount A discount | unit tonne | premium 150 | sold true',
   $q$select pg_temp.res((select pune from k), (select fe500d from k))$q$);
 select pg_temp.expect_value('A grade with no premium set anywhere has none (not zero)',
-  'served | diff 200 | size A sizes | loading A loading | discount A discount | unit tonne | premium - | sold true',
+  'served | diff 200 | discount A discount | unit tonne | premium - | sold true',
   $q$select pg_temp.res((select satara from k), (select fe500 from k))$q$);
 select pg_temp.expect_value('Grade not sold: Fe500 is not sold in Sangli',
-  'served | diff 200 | size A sizes | loading A loading | discount A discount | unit tonne | premium - | sold false',
+  'served | diff 200 | discount A discount | unit tonne | premium - | sold false',
   $q$select pg_temp.res((select sangli from k), (select fe500 from k))$q$);
-select pg_temp.expect_value('Grade size chart: Fe550D in Sangli uses its own size chart',
-  'served | diff 200 | size A sizes Fe550D | loading A loading | discount A discount | unit tonne | premium 300 | sold true',
+select pg_temp.expect_value('Fe550D in Sangli: premium 300 from Maharashtra, sold',
+  'served | diff 200 | discount A discount | unit tonne | premium 300 | sold true',
   $q$select pg_temp.res((select sangli from k), (select fe550d from k))$q$);
-select pg_temp.expect_value('Other grades in Sangli use the family size chart',
-  'served | diff 200 | size A sizes | loading A loading | discount A discount | unit tonne | premium 150 | sold true',
-  $q$select pg_temp.res((select sangli from k), (select fe500d from k))$q$);
+-- Which size figures apply (including a grade's own size chart) is checked
+-- per size in tests/database/size_figures.sql.
 
 -- "Everywhere" must be chosen explicitly ---------------------------------------
 
@@ -252,16 +248,16 @@ select pg_temp.expect_value('A saves version 2: version 1 plus "everywhere" +500
          'size_chart_id', (select a_sizes from k), 'loading_chart_id', (select a_loading from k),
          'discount_chart_id', (select a_discount from k)))) is not null then 'saved' end$q$);
 select pg_temp.expect_value('With "everywhere" chosen, North Goa is served at +500',
-  'served | diff 500 | size A sizes | loading A loading | discount A discount | unit -',
+  'served | diff 500 | discount A discount | unit -',
   $q$select pg_temp.res((select north_goa from k))$q$);
 select pg_temp.expect_value('Kolhapur''s exclusion still beats "everywhere"',
-  'not served | diff - | size - | loading - | discount - | unit -',
+  'not served | diff - | discount - | unit -',
   $q$select pg_temp.res((select kolhapur from k))$q$);
 select pg_temp.expect_value('Pune''s zero still beats "everywhere"',
-  'served | diff 0 | size A sizes | loading A loading | discount A discount | unit tonne',
+  'served | diff 0 | discount A discount | unit tonne',
   $q$select pg_temp.res((select pune from k))$q$);
 select pg_temp.expect_value('Looking up version 1 still gives North Goa not served',
-  'not served | diff - | size - | loading - | discount - | unit -',
+  'not served | diff - | discount - | unit -',
   $q$select pg_temp.res((select north_goa from k), null,
        (select id from area_setting_versions where seller_id = '00000000-0000-0000-0000-0000000000a1' and version_number = 1))$q$);
 
@@ -391,7 +387,7 @@ select pg_temp.expect_value('Admin saves an empty setup for A (version 3: serves
      then 'saved' end$q$);
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
-select pg_temp.expect_value('With an empty setup, Satara is not served', 'not served | diff - | size - | loading - | discount - | unit -',
+select pg_temp.expect_value('With an empty setup, Satara is not served', 'not served | diff - | discount - | unit -',
   $q$select pg_temp.res((select satara from k))$q$);
 
 -- Deleting a seller's login removes his area settings -------------------------

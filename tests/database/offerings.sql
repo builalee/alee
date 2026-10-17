@@ -1,13 +1,13 @@
 -- ============================================================
--- Checks: what each seller offers (grades and sizes), and missing figures.
+-- Checks: what each seller offers (grades and sizes).
 -- Covers: nothing selected by default; select one, select all, unselect;
 -- only active grades and sizes in a family the seller deals in; unselecting
 -- never deletes; every change kept as history that cannot be changed;
 -- sizes switched on later start unselected; other sellers cannot see or
--- change a seller's choices or history; a selected size with no figure in
--- the size chart is reported as missing, never treated as zero.
+-- change a seller's choices or history. Whether an offered size has a figure
+-- for a buyer's area is checked in tests/database/size_figures.sql.
 -- Tables: seller_grades, seller_sizes, seller_offering_history.
--- Functions: select_all_in_family, size_chart_missing_figures.
+-- Functions: select_all_in_family.
 --
 -- Test people (temporary logins, rolled back):
 --   A ...a1  seller, deals in TMT only
@@ -191,52 +191,6 @@ select pg_temp.expect_value('Every TMT size A ever chose is still on record, non
 select pg_temp.expect_value('Admin selects all TMT sizes for A again (now including 40mm)',
   (select (tmt_active_sizes::int + 1)::text from ids),
   $q$select select_all_in_family((select tmt from ids), 'sizes', true, '00000000-0000-0000-0000-0000000000a1')::text$q$);
-
--- Missing figures: a selected size with no figure is an error, never zero --------
-
-select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
-
-select pg_temp.expect_rows('A creates a size chart', 1,
-  $q$insert into charts (seller_id, segment_id, chart_type, name)
-     values ('00000000-0000-0000-0000-0000000000a1', (select tmt from ids), 'size', 'A sizes')$q$);
-select pg_temp.expect_value('A saves figures for 8mm (500), 10mm (0) and 12mm (300) only', 'saved',
-  $q$select case when save_chart_version((select id from charts where name = 'A sizes'), 'tonne',
-       (select jsonb_agg(jsonb_build_object('size_id', z.id, 'amount',
-                case z.display_name when '8mm' then 500 when '10mm' then 0 else 300 end))
-          from sizes z join segments s on s.id = z.segment_id
-         where s.name = 'TMT Bars' and z.display_name in ('8mm', '10mm', '12mm'))) is not null
-     then 'saved' end$q$);
-select pg_temp.expect_value('The sizes A offers but has no figure for are reported as missing',
-  '16mm, 20mm, 25mm, 32mm, Check 40mm',
-  $q$select string_agg(display_name, ', ' order by display_name) from size_chart_missing_figures(
-       (select id from charts where name = 'A sizes'))$q$);
-select pg_temp.expect_value('10mm has a figure of 0, so it is not missing', 'not missing',
-  $q$select case when exists (select 1 from size_chart_missing_figures((select id from charts where name = 'A sizes'))
-                              where display_name = '10mm') then 'MISSING' else 'not missing' end$q$);
-
-select pg_temp.expect_rows('A unselects 32mm and 40mm', 2,
-  $q$update seller_sizes set is_selected = false
-     where seller_id = '00000000-0000-0000-0000-0000000000a1' and size_id in ((select s32 from ids), (select s40 from ids))$q$);
-select pg_temp.expect_value('A size A no longer offers is no longer missing', '16mm, 20mm, 25mm',
-  $q$select string_agg(display_name, ', ' order by display_name) from size_chart_missing_figures(
-       (select id from charts where name = 'A sizes'))$q$);
-
-select pg_temp.expect_value('A saves version 2 with every size he offers', 'saved',
-  $q$select case when save_chart_version((select id from charts where name = 'A sizes'), 'tonne',
-       (select jsonb_agg(jsonb_build_object('size_id', z.id, 'amount', 0))
-          from seller_sizes ss join sizes z on z.id = ss.size_id
-         where ss.seller_id = '00000000-0000-0000-0000-0000000000a1' and ss.is_selected)) is not null
-     then 'saved' end$q$);
-select pg_temp.expect_value('Nothing is missing now', '(nothing)',
-  $q$select string_agg(display_name, ', ') from size_chart_missing_figures((select id from charts where name = 'A sizes'))$q$);
-
-select pg_temp.as_owner();
-create temp table achart as select id from charts where name = 'A sizes';
-grant select on achart to public;
-
-select pg_temp.as_user('00000000-0000-0000-0000-0000000000b2');
-select pg_temp.expect_refused('B checks A''s chart for missing sizes, using its id',
-  $q$select * from size_chart_missing_figures((select id from achart))$q$);
 
 -- Deleting a seller's login removes his choices and their history -------------
 
