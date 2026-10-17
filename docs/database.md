@@ -197,6 +197,20 @@ Regular has no rows here, because it covers every family.
 - **`end_brand_ownership(brand)`:** an admin ends ownership, for example when a brand is sold.
 - **Checks:** `tests/database/brand_ownership.sql`.
 
+### Brand lines (step 3): `seller_brands`
+Which brands each seller sells, per product family, e.g. *Bala Traders – Tata – TMT*. Each brand line will get its own setup, rates and status in the next steps.
+
+| Field | Meaning |
+|---|---|
+| `seller_id`, `brand_id`, `segment_id` | Who, which brand, which family. Never change. |
+| `is_active` | Switched off when he stops selling it; never deleted. |
+
+- **What can be added:** only an approved brand that covers the family, in a family the seller deals in. Refusals are in plain words: "Check Tiscon is not listed for MS Angles."
+- **No owner needed:** any seller can sell any approved brand, even one with no owner on ALEE.
+- **Who sees and changes:** anyone sees active brand lines. The seller and admins add and change them.
+- **Transitional (decisions 2.44, removed in step 11):** adding a product family automatically adds a **Regular** brand line for it, so everything built before brands keeps working. Existing sellers' families were carried across as Regular lines.
+- **Checks:** `tests/database/seller_brands.sql`.
+
 ---
 
 ## Area: accounts and sellers
