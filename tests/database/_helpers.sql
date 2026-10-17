@@ -12,6 +12,7 @@
 --                                           -- server's secret key
 --
 --   select pg_temp.expect_refused('label', $q$ <sql> $q$);
+--   select pg_temp.expect_message('label', '<exact message>', $q$ <sql> $q$);
 --   select pg_temp.expect_rows('label', <n>, $q$ <sql> $q$);
 --   select pg_temp.expect_value('label', '<text>', $q$ <sql returning one value> $q$);
 -- ============================================================
@@ -58,6 +59,27 @@ begin
     end,
     code is not null and pg_temp.is_refusal(code)
   );
+end;
+$$;
+
+-- Refused, and with exactly this message (for plain-language messages the
+-- seller will see).
+create function pg_temp.expect_message(test text, expected text, q text)
+returns void language plpgsql as $$
+declare
+  code text;
+  msg  text;
+begin
+  begin
+    execute q;
+  exception when others then
+    get stacked diagnostics code = returned_sqlstate, msg = message_text;
+  end;
+
+  insert into check_results (test, expected, got, pass)
+  values (test, 'refused: ' || expected,
+          case when code is null then 'allowed' else 'refused: ' || msg end,
+          code is not null and pg_temp.is_refusal(code) and msg = expected);
 end;
 $$;
 

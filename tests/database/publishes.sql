@@ -61,6 +61,8 @@ select (select id from segments where name = 'TMT Bars') as tmt,
        (select id from regions where level = 'state' and name = 'Maharashtra') as mh,
        (select id from regions where level = 'state' and name = 'Goa') as goa,
        (select id from regions where level = 'district' and name = 'Pune') as pune,
+       (select id from regions where level = 'district' and name = 'Satara') as satara,
+       (select id from products where name = 'Fe550D') as fe550d,
        (select z.id from sizes z join segments s on s.id = z.segment_id where s.name = 'TMT Bars' and z.display_name = '8mm') as s8,
        (select z.id from sizes z join segments s on s.id = z.segment_id where s.name = 'TMT Bars' and z.display_name = '10mm') as s10;
 grant select on k to public;
@@ -69,7 +71,9 @@ grant select on k to public;
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 insert into charts (seller_id, segment_id, chart_type, name)
 select '00000000-0000-0000-0000-0000000000a1', (select tmt from k), x.type::chart_type, x.name
-  from (values ('size', 'A sizes'), ('loading', 'A loading'), ('size', 'A extra sizes')) as x (type, name);
+  from (values ('size', 'A sizes'), ('loading', 'A loading'), ('size', 'A extra sizes'), ('size', 'A grade sizes')) as x (type, name);
+select save_chart_version((select id from charts where name = 'A grade sizes'), 'tonne', jsonb_build_array(
+  jsonb_build_object('size_id', (select s8 from k), 'amount', 700)));
 select save_chart_version((select id from charts where name = 'A sizes'), 'tonne', jsonb_build_array(
   jsonb_build_object('size_id', (select s8 from k), 'amount', 500),
   jsonb_build_object('size_id', (select s10 from k), 'amount', 400)));
@@ -97,6 +101,20 @@ select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select 
 select pg_temp.as_owner();
 create temp table bpub as select id from publishes where seller_id = '00000000-0000-0000-0000-0000000000b2';
 grant select on bpub to public;
+
+-- F: a new seller (TMT, area settings saved) who has not set a closing time.
+insert into auth.users (id, phone, aud, role)
+values ('00000000-0000-0000-0000-0000000000f6', '919800000006', 'authenticated', 'authenticated');
+insert into accounts (id, full_name, phone, signup_role, region_id)
+select '00000000-0000-0000-0000-0000000000f6', 'Farid', '+919800000006', 'retailer', id
+  from regions where level = 'district' and name = 'Pune';
+insert into seller_profiles (account_id, store_name, region_id, is_public)
+select '00000000-0000-0000-0000-0000000000f6', 'Farid Hardware', id, true
+  from regions where level = 'district' and name = 'Pune';
+insert into seller_segments (seller_id, segment_id)
+values ('00000000-0000-0000-0000-0000000000f6', (select tmt from k));
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000f6');
+select save_area_settings((select tmt from k), '[{"everywhere": true, "area_difference": 0}]');
 
 -- Structure -------------------------------------------------------------------
 
@@ -146,7 +164,7 @@ select pg_temp.expect_value('Every chart version used is pinned', 'A loading v1,
   $q$select string_agg(c.name || ' v' || cv.version_number, ', ' order by c.name)
      from publish_chart_versions pcv join charts c on c.id = pcv.chart_id join chart_versions cv on cv.id = pcv.chart_version_id
      where pcv.publish_id in (select id from publishes where seller_id = '00000000-0000-0000-0000-0000000000a1')$q$);
-select pg_temp.expect_value('Charts the publish used are now marked "used since"', 'A extra sizes unused, A loading used, A sizes used',
+select pg_temp.expect_value('Charts the publish used are now marked "used since"', 'A extra sizes unused, A grade sizes unused, A loading used, A sizes used',
   $q$select string_agg(name || case when in_use_since is null then ' unused' else ' used' end, ', ' order by name)
      from charts where seller_id = '00000000-0000-0000-0000-0000000000a1'$q$);
 select pg_temp.expect_value('Right after publishing, TMT is open', 'open',
@@ -160,11 +178,13 @@ select pg_temp.expect_refused('Negative basic rate',
   $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', -5)))$q$);
 select pg_temp.expect_refused('Basic rate finer than 4 decimal places (refused, not rounded)',
   $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 41000.12345)))$q$);
-select pg_temp.expect_refused('No basic rate given',
+select pg_temp.expect_message('No basic rate given', 'Enter your basic rate for TMT Bars.',
   $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k))))$q$);
-select pg_temp.expect_refused('A family A does not deal in',
+select pg_temp.expect_message('A family A does not deal in',
+  'You don''t sell Check Pipes yet. Add it to your product families before publishing.',
   $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select pipes from k), 'base_rate', 1000)))$q$);
-select pg_temp.expect_refused('A family with no area settings yet (MS Angles)',
+select pg_temp.expect_message('A family with no area settings yet: says what to fix',
+  'Choose where you sell MS Angles before publishing.',
   $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select angles from k), 'base_rate', 1000)))$q$);
 select pg_temp.expect_refused('The same family twice in one publish',
   $q$select publish_rates(jsonb_build_array(
@@ -172,7 +192,8 @@ select pg_temp.expect_refused('The same family twice in one publish',
        jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 42000)))$q$);
 select pg_temp.expect_refused('A misspelt field',
   $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rat', 41000)))$q$);
-select pg_temp.expect_refused('An empty publish', $q$select publish_rates('[]')$q$);
+select pg_temp.expect_message('An empty publish', 'Choose at least one product family to publish.',
+  $q$select publish_rates('[]')$q$);
 select pg_temp.expect_value('Refused publishes left nothing behind: still 1 publish', '1',
   $q$select count(*)::text from publishes where seller_id = '00000000-0000-0000-0000-0000000000a1'$q$);
 
@@ -240,7 +261,19 @@ select pg_temp.expect_value('A adds a Goa row using "A extra sizes", then switch
                            'size_chart_id', (select id from charts where name = 'A extra sizes')))) is not null
              then 'done' end$q$);
 update charts set is_active = false where name = 'A extra sizes';
-select pg_temp.expect_refused('Publishing while area settings use a switched-off chart',
+select pg_temp.expect_message('Publishing while an area uses a switched-off chart: says which area and chart',
+  'Goa still uses ''A extra sizes'', which you switched off. Choose a chart for Goa.',
+  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 42100)))$q$);
+
+select pg_temp.expect_value('A gives Fe550D its own chart in Satara, then switches that chart off', 'done',
+  $q$select case when save_area_settings((select tmt from k), (select tmt_v2 from setup) || jsonb_build_array(
+                         jsonb_build_object('region_id', (select satara from k),
+                           'grades', jsonb_build_array(jsonb_build_object('product_id', (select fe550d from k),
+                             'size_chart_id', (select id from charts where name = 'A grade sizes')))))) is not null
+             then 'done' end$q$);
+update charts set is_active = false where name = 'A grade sizes';
+select pg_temp.expect_message('A grade''s switched-off chart: says which grade, area and chart',
+  'Satara (Fe550D) still uses ''A grade sizes'', which you switched off. Choose a chart for Fe550D in Satara.',
   $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 42100)))$q$);
 select save_area_settings((select tmt from k), (select tmt_v2 from setup));
 
@@ -356,19 +389,30 @@ select pg_temp.expect_value('Switching it off again records nothing new', 'false
 select pg_temp.expect_value('A publishes TMT 43500 while not quoting', 'published',
   $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 43500)))
      is not null then 'published' end$q$);
-select pg_temp.expect_value('It stays "not quoting" until he switches it back on', 'not_quoting',
-  $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k))$q$);
-select pg_temp.expect_value('A switches TMT back on', 'true',
-  $q$select set_quoting((select tmt from k), true)::text$q$);
-select pg_temp.expect_value('TMT is open again, at the rate published while it was off', 'open, latest 43500',
+select pg_temp.expect_value('Publishing switched TMT back on: open, at the new rate', 'open, latest 43500',
   $q$select m.status || ', latest ' || pi.base_rate
      from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k)) m,
           seller_family_status st join publish_items pi on pi.publish_id = st.latest_publish_id and pi.segment_id = st.segment_id
      where st.seller_id = '00000000-0000-0000-0000-0000000000a1' and st.segment_id = (select tmt from k)$q$);
-select pg_temp.expect_value('History: switched off once, back on once, with times', 'stopped_quoting, resumed_quoting',
+select pg_temp.expect_value('History: switched off, then back on by the publish, at the publish''s time',
+  'stopped_quoting, resumed_quoting at publish time',
+  $q$select string_agg(h.event::text, ', ' order by h.happened_at)
+            || case when max(h.happened_at) = (select max(p.published_at) from publishes p
+                                                where p.seller_id = '00000000-0000-0000-0000-0000000000a1')
+                    then ' at publish time' else ' at another time' end
+     from seller_family_status_history h
+     where h.seller_id = '00000000-0000-0000-0000-0000000000a1' and h.segment_id = (select tmt from k)$q$);
+select pg_temp.expect_value('Switching on what is already on records nothing new', 'true, still 2 entries',
+  $q$select set_quoting((select tmt from k), true)::text || ', still ' ||
+            (select count(*) from seller_family_status_history
+              where seller_id = '00000000-0000-0000-0000-0000000000a1' and segment_id = (select tmt from k)) || ' entries'$q$);
+select pg_temp.expect_value('A switches TMT off and back on by hand', 'false, true',
+  $q$select set_quoting((select tmt from k), false)::text || ', ' || set_quoting((select tmt from k), true)::text$q$);
+select pg_temp.expect_value('Full history kept in order', 'stopped_quoting, resumed_quoting, stopped_quoting, resumed_quoting',
   $q$select string_agg(event::text, ', ' order by happened_at) from seller_family_status_history
-     where seller_id = '00000000-0000-0000-0000-0000000000a1' and segment_id = (select tmt from k)
-       and happened_at is not null$q$);
+     where seller_id = '00000000-0000-0000-0000-0000000000a1' and segment_id = (select tmt from k)$q$);
+select pg_temp.expect_value('TMT is open', 'open',
+  $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select tmt from k))$q$);
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000b2');
 select pg_temp.expect_refused('Another seller switches A''s TMT off',
@@ -447,11 +491,30 @@ select pg_temp.expect_value('Closed at tomorrow''s closing time (23 hours later)
   $q$select status || case when closed_at = (select pub from ch) + interval '23 hours' then ' at publish + 23 hours' else ' at ' || closed_at end
      from market_status('00000000-0000-0000-0000-0000000000a1', (select channels from k), (select pub from ch) + interval '23 hours 1 minute')$q$);
 
-select pg_temp.as_owner();
-update seller_profiles set market_close_time = null where account_id = '00000000-0000-0000-0000-0000000000a1';
-select pg_temp.as_visitor();
-select pg_temp.expect_value('No closing time set: still open days later (only "close now" closes)', 'open',
-  $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select channels from k),
-                                      (select pub from ch) + interval '100 hours')$q$);
 select pg_temp.expect_value('A family never published shows "not published"', 'not_published',
   $q$select status from market_status('00000000-0000-0000-0000-0000000000a1', (select angles from k))$q$);
+
+-- A daily closing time is required before the first publish ---------------------------
+
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000f6');
+select pg_temp.expect_message('F has no closing time: his first publish is refused, saying what to do',
+  'Set your daily closing time before your first publish.',
+  $q$select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 40000)))$q$);
+select pg_temp.expect_rows('Before publishing, F sets a closing time', 1,
+  $q$update seller_profiles set market_close_time = '18:00' where account_id = '00000000-0000-0000-0000-0000000000f6'$q$);
+select pg_temp.expect_rows('...and can still clear it (not yet published)', 1,
+  $q$update seller_profiles set market_close_time = null where account_id = '00000000-0000-0000-0000-0000000000f6'$q$);
+select pg_temp.expect_rows('F accepts 6:00 PM', 1,
+  $q$update seller_profiles set market_close_time = '18:00' where account_id = '00000000-0000-0000-0000-0000000000f6'$q$);
+select pg_temp.expect_value('Now F''s first publish goes through', 'published',
+  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 40000)))
+     is not null then 'published' end$q$);
+select pg_temp.expect_rows('After publishing, F can change his closing time', 1,
+  $q$update seller_profiles set market_close_time = '19:30' where account_id = '00000000-0000-0000-0000-0000000000f6'$q$);
+select pg_temp.expect_message('After publishing, F cannot clear his closing time',
+  'A seller who has published must keep a daily closing time. Change it instead of clearing it.',
+  $q$update seller_profiles set market_close_time = null where account_id = '00000000-0000-0000-0000-0000000000f6'$q$);
+
+select pg_temp.as_owner();
+select pg_temp.expect_refused('Even with the master key, a published seller''s closing time cannot be cleared',
+  $q$update seller_profiles set market_close_time = null where account_id = '00000000-0000-0000-0000-0000000000a1'$q$);
