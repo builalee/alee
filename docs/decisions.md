@@ -303,7 +303,7 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 ### 2.29 "Not quoting today" is a switch, not a publish
 **Decision (2026-10-17):**
 - **One tap, no publish:** a seller can switch a product family off with one tap, without publishing. Buyers then see "not quoting" and no figure.
-- **Stays off until switched on:** publishing while off does not switch it on.
+- **Switching back on:** it stays off until the seller switches it back on, **or publishes that family**. Publishing switches it back on automatically, the same way publishing reopens a closed market, and that is recorded in the history at the publish time. *(Changed 2026-10-17: originally publishing left it off.)*
 - **History:** every switch on or off is kept with its time and who made it.
 - **Separate from sizes:** this is temporary and separate from not selling a size or grade at all (2.17).
 
@@ -320,10 +320,29 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 **How:**
 - **One function:** `market_status` is the one place this is worked out (the "market status" engine in CLAUDE.md section 20).
 - **Closing time:** the first daily closing time after the latest publish. So a rate published after today's closing time stays open until tomorrow's.
+- **Closing time required (settled 2026-10-17):**
+  - **Before the first publish:** a seller must have a daily closing time. The setup screen pre-fills **6:00 PM**, so accepting it is one tap. It is not filled in by the database, so every seller has actually accepted his own time.
+  - **After publishing:** he can change it but never clear it, or his rate would never close.
 - **Any moment:** it can be asked about any moment, which is how the daily close is tested.
 
 ### 2.31 Enquiries after close are allowed (note for the enquiry step)
 **Decision (2026-10-17), nothing built yet:** a buyer may send an enquiry after a seller's market has closed. The enquiry must be marked **"received after close"**, and the buyer told the seller will respond when the market opens.
+
+### 2.32 A refused publish says in plain words what to fix
+**Decision (2026-10-17):** a product family can't be published without area settings, or while an area still points to a switched-off chart. In both cases publishing stops with a plain message naming the family, area and chart, so the seller knows exactly what to fix:
+
+| Situation | Message |
+|---|---|
+| No area settings | "Choose where you sell TMT Bars before publishing." |
+| An area's chart switched off | "Satara still uses 'Old TMT rates', which you switched off. Choose a chart for Satara." |
+| A grade's own chart switched off | "Satara (Fe550D) still uses 'Old TMT rates', which you switched off. Choose a chart for Fe550D in Satara." |
+| No closing time | "Set your daily closing time before your first publish." |
+| No basic rate | "Enter your basic rate for TMT Bars." |
+| A family he doesn't sell | "You don't sell MS Angles yet. Add it to your product families before publishing." |
+
+**Why:** A seller who is stopped must be able to fix the problem in one step. A vague error at the moment of publishing is exactly what made the earlier version feel harder than WhatsApp. The wording is checked word for word by the saved checks.
+**For later:** these messages are the first candidates for the single user-facing text file (CLAUDE.md section 11), so they can be translated into Marathi and Hindi.
+
 
 ---
 
@@ -436,9 +455,9 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 | Question | Notes |
 |---|---|
 | Account deletion vs the trade record | Deleting an account currently removes everything, **including his publishes** (nothing else can remove them). Once orders exist, the other party must keep his order history and bills. Likely answer: remove personal details, keep the trade record without the name. Consent proof may also need keeping for a period. Take legal advice before launch. |
-| Publishing requirements (proposed 2026-10-17) | A family can be published only if the seller deals in it, has saved area settings for it, and none of the charts those settings use is switched off. Otherwise the publish is refused with a plain message. Confirm. |
-| "Close market now" with no family named (proposed 2026-10-17) | Closes every family the seller deals in that is open. A family that is already closed, not quoting or never published is left alone and nothing is recorded for it. Confirm. |
-| No closing time set (proposed 2026-10-17) | If a seller has not set a daily closing time, his rate never closes by itself; only "close market now" closes it. Alternative: require a closing time before the first publish. Confirm. |
+| ~~Publishing requirements~~ | **Confirmed 2026-10-17, see 2.32:** no publish without area settings or while an area points to a switched-off chart, with a plain message saying what to fix. |
+| ~~"Close market now" with no family named~~ | **Confirmed 2026-10-17:** closes every open family the seller deals in. |
+| ~~No closing time set~~ | **Settled 2026-10-17, see 2.30:** a closing time is required before the first publish, pre-filled at 6:00 PM, and can't be cleared afterwards. |
 | Public visibility of size differences and loading | Public for now; revisit. |
 | Angle and channel weights | Unverified and switched off. Confirm weights, whether 25×6 and 32×3 are traded, and the usual length (assumed 6m). |
 | Kushavati | Deferred. Add before any Goa talukas. |

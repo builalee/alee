@@ -301,7 +301,7 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 - **Accounts** — phone OTP login, role chosen at signup. Every account can both buy and sell.
 - **Seller setup** — profile, banner, location, market close time, public or private setting. Size, loading and discount charts, templates, area-level settings.
 - **Publishing** — four taps maximum: open, Publish, enter rate (yesterday's pre-filled), confirm. The confirmation shows the **final rate for each area**, not the differences. Supports updating one segment or all segments at once.
-- **Market close** — after the seller's close time, or straight away if he presses "close market now", his last rate still shows, tagged "market closed" with the closing time, until he publishes again. Separately, "not quoting today" switches a family off with one tap until he switches it back on. Use `market_status`; never work this out in a screen.
+- **Market close** — after the seller's close time, or straight away if he presses "close market now", his last rate still shows, tagged "market closed" with the closing time, until he publishes again. Separately, "not quoting today" switches a family off with one tap until he switches it back on or publishes that family. A daily closing time is required before the first publish; the setup screen pre-fills 6:00 PM so accepting it is one tap. Use `market_status`; never work this out in a screen.
 - **Search and public profile** — find sellers by product, area or name.
 - **Subscriptions** — subscribe to receive rates, alert preference chosen per subscription, approval for private profiles, blocking.
 - **Buyer feed** — subscribed sellers' current rates for the buyer's area, with history scoped to his area.

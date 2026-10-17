@@ -411,7 +411,7 @@ One row per chart that the area settings pointed to, pinned to the version that 
 | Field | Meaning |
 |---|---|
 | `latest_publish_id`, `last_published_at` | The latest publish: the quick way to a seller's current rate. The rate engine works out the buyer's figure from it; final rates are not pre-calculated. |
-| `is_quoting` | `false` = "not quoting today": buyers see "not quoting" and no figure. Stays off until the seller switches it back on, even if he publishes. |
+| `is_quoting` | `false` = "not quoting today": buyers see "not quoting" and no figure. Stays off until the seller switches it back on or publishes that family (publishing switches it on, recorded in the history). |
 | `closed_early_at` | The latest "close market now". It closes the family only if it came after the latest publish. |
 
 ### `seller_family_status_history` — every switch and early close
@@ -419,14 +419,16 @@ One row per chart that the area settings pointed to, pinned to the version that 
 
 ### How publishing works
 - **`publish_rates(items, is_correction, corrects, seller)`** is the only way to publish.
+  - **The seller must** have a daily closing time set.
   - **Each family must** be one the seller deals in, with area settings saved, and no switched-off chart in use. The rate must be above zero.
-  - **What it does:** pins the versions, marks the charts used ("used since"), and updates the status. A new publish reopens a closed market.
+  - **Refusals are in plain words** naming the family, area and chart (decisions 2.32), e.g. "Satara still uses 'Old TMT rates', which you switched off. Choose a chart for Satara."
+  - **What it does:** pins the versions, marks the charts used ("used since"), and updates the status. A new publish reopens a closed market and switches "not quoting" back on, recorded in the history.
   - **Who:** a seller publishes for himself; an admin may publish for any seller, recorded as such.
 - **Rebuilding a past rate:** `resolve_area_settings(..., version = the publish's area-settings version)` and `resolve_size_figures(..., publish)` give exactly what that publish used.
 - **`market_status(seller, family, at)`** is the one place open/closed is worked out. Anyone can call it. It answers `not_published`, `not_quoting`, `open` or `closed` (with the closing time), now or at any given moment.
   - **Closed** means that, after the latest publish, either the seller's daily closing time (Indian time) has passed or he pressed "close market now".
   - **Published after today's closing time:** it stays open until tomorrow's.
-  - **No closing time set:** only "close market now" closes.
+  - **Closing time required:** a seller needs one before his first publish (the setup screen pre-fills 6:00 PM). After publishing he can change it but not clear it, not even with the master key.
 - **`set_quoting(family, on/off, seller)`** is the "not quoting today" switch. Switching to the state it's already in records nothing.
 - **`close_market_now(families, seller)`** closes the given families now; if none are named, every family. Only families currently open are closed and recorded.
 
