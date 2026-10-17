@@ -526,10 +526,11 @@ One row per chart that the area settings pointed to, pinned to the version that 
   - **What it does:** pins the versions, marks the charts used ("used since"), and updates the status. A new publish reopens a closed market and switches "not quoting" back on, recorded in the history.
   - **Who:** a seller publishes for himself; an admin may publish for any seller, recorded as such.
 - **Four-tap publishing (brands step 10):**
-  - **`publish_prefill(seller)`:** lists every brand line he sells, with its last published rate and unit, whether it is quoting, and his current unit, so the screen can pre-fill yesterday's rates.
-  - **`publish_moved(moves, seller)`:** publishes every brand line of the named families at its last rate moved by **one amount per family**, in that family's unit, as **one** publish.
-  - **Left out of a move:** lines never published, and lines switched to "not quoting" (a move would switch them back on).
-  - **Refused, in plain words:** a family with nothing to move, a family whose unit changed since its last publish, and a move taking a rate to zero or below.
+  - **`publish_prefill(seller)`:** lists every brand line he sells, with its last published rate and unit, his current unit, and `move_status`: `move`, `needs_rate` (no rate yet), `unit_changed` (enter a fresh rate), or `not_quoting` (paused; left untouched).
+  - **`publish_moved(moves, seller, entered)`:** in **one** publish, it moves every `move` line of the named families by **one amount per family**, in that family's unit. It also publishes the rates `entered` for `needs_rate` and `unit_changed` lines.
+  - **Never a silent skip:** if a named family has a line needing a rate that was not entered, it is refused, naming the lines: "Enter today's rate for Check Rods before publishing."
+  - **Paused lines:** they are left untouched, and entering a rate for one is refused.
+  - **Other refusals, in plain words:** a family with no brands, and a move taking a rate to zero or below.
 - **Rebuilding a past rate:** `resolve_area_settings(..., version = the publish's area-settings version)` and `resolve_size_figures(..., publish)` give exactly what that publish used.
 - **`market_status(seller, family, at, brand)`** is the one place open/closed is worked out. Anyone can call it. It answers `not_published`, `not_quoting`, `open` or `closed` (with the closing time), now or at any given moment.
   - **Closed** means that, after the latest publish, either the seller's daily closing time (Indian time) has passed or he pressed "close market now".

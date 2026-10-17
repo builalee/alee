@@ -327,7 +327,7 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 - **Any moment:** it can be asked about any moment, which is how the daily close is tested.
 
 ### 2.31 Enquiries after close are allowed (note for the enquiry step)
-**Decision (2026-10-17), nothing built yet:** a buyer may send an enquiry after a seller's market has closed. The enquiry must be marked **"received after close"**, and the buyer told the seller will respond when the market opens.
+**Decision (2026-10-17, confirmed by the owner), nothing built yet:** a buyer may send an enquiry after a seller's market has closed. The enquiry must be marked **"received after close"**, and the buyer told the seller will respond when the market opens.
 
 ### 2.32 A refused publish says in plain words what to fix
 **Decision (2026-10-17):** a product family can't be published without area settings, or while an area still points to a switched-off chart. In both cases publishing stops with a plain message naming the family, area and chart, so the seller knows exactly what to fix:
@@ -423,6 +423,12 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 **Decision (2026-10-17):**
 - **Pre-filled:** all his brands are pre-filled from yesterday.
 - **One move per family:** "move everything by ±₹X" is **one amount per product family**, never across families, because families may be priced in different units.
+- **Never a silent skip (settled 2026-10-17):** before the seller confirms, the screen lists each brand line and what will happen to it:
+  - **Moved:** lines with a rate, in the same unit, move by the family's amount.
+  - **Rate needed:** lines with no rate yet, and lines whose family's unit changed since the last publish, are listed with a place to enter today's rate. They go out in **the same publish**.
+  - **Not quoting:** paused lines are listed and left untouched; a rate cannot be entered for them without switching them back on.
+
+  If a line that needs a rate has none, publishing is refused and names it: "Enter today's rate for Check Rods before publishing."
 - **Confirm:** the last tap.
 - **One notification:** one publish can cover many brands and families, and is one notification.
 
@@ -554,8 +560,8 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 | ~~"Close market now" with no family named~~ | **Confirmed 2026-10-17:** closes every open family the seller deals in. |
 | ~~No closing time set~~ | **Settled 2026-10-17, see 2.30:** a closing time is required before the first publish, pre-filled at 6:00 PM, and can't be cleared afterwards. |
 | ~~Type B and "that brand's rate"~~ | **Settled 2026-10-17 by brands (2.37, 2.43):** brands are added before the rate engine. Type B hides only that distributor's rate for that brand in that area; his other brands are unaffected. |
-| "Move everything" details (proposed 2026-10-17) | (1) Brand lines switched to "not quoting" are left out of a move, because publishing them would switch them back on. (2) Lines never published are left out (nothing to move from). (3) If a family's unit changed since its last publish, the move is refused and the seller enters today's rates. Confirm. |
-| When a brand changes owner (proposed 2026-10-17) | Built as: only allocations made by the brand's current owner count, so when an admin ends ownership (e.g. the brand is sold), the old owner's distributor appointments stop taking effect. The records stay. The new owner appoints his own. Confirm. |
+| ~~"Move everything" details~~ | **Settled 2026-10-17, see 2.42:** paused ("not quoting") lines are listed and left untouched; ~~lines never published are left out~~ lines with no rate yet, and families whose unit changed, are **never silently skipped**: they are listed with a place to enter today's rate and go out in the same single publish. |
+| ~~When a brand changes owner~~ | **Settled 2026-10-17:** a brand changing owner ends the old owner's distributor appointments (they stop taking effect); their records are kept. The new owner appoints his own. |
 | ~~Territory details~~ | **Confirmed 2026-10-17:** (1) ~~a manufacturer can only allocate a family he himself sells~~ **updated 2026-10-17 (2.43): a manufacturer can only allocate a brand he owns, for a family that brand covers**; (2) the type is fixed once accepted (2.35); (3) "everywhere" cannot be allocated, so the widest area is a state. |
 | Public visibility of size differences and loading | Public for now; revisit. |
 | Angle and channel weights | Unverified and switched off. Confirm weights, whether 25×6 and 32×3 are traded, and the usual length (assumed 6m). |
