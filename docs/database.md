@@ -56,6 +56,8 @@ erDiagram
     segments        ||--o{ territory_allocations   : "for family"
     regions         ||--o{ territory_allocations   : "area"
     territory_allocations ||--o{ territory_allocation_events : "every step"
+    brands          ||--o{ brand_families          : "covers"
+    segments        ||--o{ brand_families          : "family"
 ```
 
 In words:
@@ -108,6 +110,7 @@ TMT Bars, MS Angles, MS Channels.
 | Field | Meaning |
 |---|---|
 | `name`, `sort_order` | Display name and position in lists. |
+| `short_name` | Short name for display, e.g. "Regular **TMT**". Defaults to the full name if not given. |
 | `default_base_unit` | `tonne` or `kg`: the pricing unit a seller starts with when he adds this family. All three default to tonne. |
 | `is_active` | Switched off instead of deleted. |
 
@@ -146,6 +149,39 @@ The same rows as `sizes`, plus `weight_per_piece_kg` = weight per metre × piece
   - Angles: 6 sizes, all unverified and switched off.
   - Channels: 6 sizes (ISMC 75–200), all unverified and switched off.
 - **Checks:** `tests/database/catalogue.sql`.
+
+---
+
+## Area: brands
+
+Brands are being added in steps (decisions 2.37 to 2.44). **Step 1 (built):** the brand list. Later steps make sellers' setups, publishing, factories and territory per brand.
+
+### `brands` — ALEE's brand list
+
+| Field | Meaning |
+|---|---|
+| `name` | The brand's name. No two live brands share a name, ignoring capitals. |
+| `is_regular` | The one unbranded option, **Regular**. It covers every family, is never owned, and is shown as "Regular TMT". It can't be rejected, switched off or duplicated. |
+| `alternate_names` | Old names and other spellings, used for search and to catch duplicate requests. |
+| `status` | `requested` → `approved` or `rejected`. The decision is final; a rejected name can be requested again as a new request, and the old one stays. |
+| `requested_by`, `decided_by`, `decided_at` | Who asked for it, and which admin decided, when. |
+| `is_active` | Switched off instead of deleted. |
+
+### `brand_families` — which product families a brand covers
+Regular has no rows here, because it covers every family.
+
+### How brands are added
+- **`request_brand(name, families)`:** a seller asks for a missing brand. If the name, or one of its known spellings, is already on ALEE or already requested, it's refused in plain words: "check tiscon is already on ALEE (as Check Tiscon)."
+- **`decide_brand(brand, approve)`:** an admin approves or rejects a request.
+- **Direct edits:** admins can also add brands, spellings and families directly.
+- **`brand_covers_family(brand, family)`:** whether a brand covers a family; Regular covers all of them.
+- **`brand_display_name(brand, family)`:** how a brand is shown. "Regular TMT" for Regular, otherwise its own name. The one place this is decided.
+
+### Who can see and change
+- **Approved, active brands** and their families: anyone.
+- **A request:** only the seller who made it, and admins.
+- **Changes:** only admins change brands. Nothing is ever deleted, not even with the master key.
+- **Checks:** `tests/database/brands.sql`.
 
 ---
 
