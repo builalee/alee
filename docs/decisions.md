@@ -239,6 +239,39 @@ An area is a state, district, taluka or city, or **"everywhere"**, a level above
 **Decision (2026-10-17), for the future setup screen:** it must show a plain coverage summary of where the seller serves, for example **"Kolhapur district: not served, except Kolhapur city"**.
 **Why:** Most-specific-wins (2.21) makes exceptions possible inside exceptions. A seller must be able to see at a glance where he actually serves, without working it out from a list of areas.
 
+### 2.24 Anything that could make a price look cheaper is never assumed to be zero
+**Decision (2026-10-17):** If a setting is not set in any area covering the buyer, and leaving it out would make the price look cheaper than intended, the rate engine treats it as **missing**. It flags it and leaves that price out. It never treats it as zero. A seller who means zero enters zero.
+
+**Settings this applies to (missing = flagged, never zero):**
+
+| Setting | Missing means | Why |
+|---|---|---|
+| Base rate | No price can be shown | Nothing to build on. |
+| Size difference, per size the seller offers | That size is flagged and left out (2.17, 2.22) | Most size differences are a premium. Treating a missing one as 0 quotes that size at the base rate. |
+| Loading, per size | Flagged; prices that need it are left out | Loading is added to the rate. A missing loading treated as 0 quotes every size too cheaply. |
+| Area difference | Flagged; that area's prices are left out | Usually a premium for freight. Treated as 0, a far district would get the near-district price. |
+| Grade premium, per grade the seller offers and sells there | That grade is flagged and left out | Treated as 0, Fe550D would be quoted at the Fe500 price. The grade the base rate is for needs an explicit 0 as well. |
+
+**Settings where "not set" has a safe meaning (not flagged):**
+
+| Setting | Not set means | Why it's safe |
+|---|---|---|
+| Discount | No discount | Leaving it out makes the price higher, never cheaper. |
+| Served / excluded | Not served (2.19) | Nothing is shown. |
+| Grade sold in this area | Sold, if the seller has selected the grade (2.17) | Doesn't change the price. |
+| Display unit | The seller's own pricing unit for the family | Doesn't change the price, only how it's shown, and it is the unit the seller himself thinks in. |
+
+Size and piece weights cannot be missing: a size cannot be switched on until its weight is verified (2.10).
+
+**Why:** A price that is too low is the worst kind of wrong. A buyer acts on it, and the seller either honours a loss or breaks his word. A price left out and flagged costs only a moment of the seller's attention. "Not set" and zero are already stored differently (2.21), so the engine can always tell them apart.
+
+**For the setup screen:** zero must be one tap, never a typed workaround. For example:
+- "I don't charge loading" sets loading to 0;
+- "Same price in every area" sets the area difference to 0;
+- "This is my base grade" sets that grade's premium to 0.
+
+**How:** the lookups report "not set" as empty and an entered zero as 0. Saved checks prove both (`tests/database/size_figures.sql`). The rate engine must flag every empty value in the first table.
+
 ---
 
 ## 3. Regions
@@ -359,5 +392,5 @@ An area is a state, district, taluka or city, or **"everywhere"**, a level above
 | ~~Template copies keep the template's unit (proposed 2026-10-17)~~ | **Superseded 2026-10-17 by 2.18:** copies are converted into the seller's unit. Converting a seller's existing charts when he later changes his unit (2.8) is still to be built. |
 | ~~A served city inside an excluded district~~ | **Settled 2026-10-17, see 2.21:** the more specific area wins, so the city is served. The setup screen shows it plainly (2.23). |
 | ~~Grade size chart vs family size chart across levels~~ | **Settled 2026-10-17, see 2.21 and 2.22:** the closer area wins; at the same area the grade's chart is looked at first. In TMT a better grade is normally a premium on the shared size difference, so a grade's own chart is the exception. |
-| No loading chart anywhere for a buyer's area (2026-10-17) | If a seller sets no loading chart in any area covering a buyer, the lookup returns no loading. Undecided: does that mean "no loading charged" or is it an error to flag, like a missing size figure? Must be settled before the rate engine. |
+| ~~No loading chart anywhere for a buyer's area~~ | **Settled 2026-10-17, see 2.24:** missing loading is flagged, never zero. A seller who charges no loading says so with one tap. |
 | Limits on chart figures (proposed 2026-10-17) | A flat discount cannot be negative. Loading and size figures may be any sign. Confirm whether loading should also be barred from going negative. |

@@ -244,3 +244,40 @@ select pg_temp.expect_value('Admin looks up D''s Satara figures', '8mm 6500 from
   $q$select display_name || ' ' || size_difference || ' from ' || size_difference_from
      from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select satara from k))
      where display_name = '8mm'$q$);
+
+-- Not set anywhere is reported empty, never as 0 ----------------------------------
+-- The rate engine treats any price-raising setting that is not set in any
+-- area (loading, area difference, grade premium, size difference) as
+-- MISSING, never zero (docs/decisions.md 2.24). That only works if the
+-- lookups report "not set" as empty. A seller who means zero enters 0.
+
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000d4');
+select pg_temp.expect_value('D saves version 3: Pune only, a size chart and nothing else', 'saved',
+  $q$select case when save_area_settings((select tmt from k), jsonb_build_array(
+       jsonb_build_object('region_id', (select pune from k),
+         'size_chart_id', (select id from chart_ids where name = 'D Pune sizes')))) is not null then 'saved' end$q$);
+select pg_temp.expect_value('Area difference set nowhere: reported empty, not 0', 'served, area difference EMPTY',
+  $q$select case when is_served then 'served' else 'not served' end || ', area difference '
+            || coalesce(area_difference::text, 'EMPTY')
+     from resolve_area_settings('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select pune from k))$q$);
+select pg_temp.expect_value('Grade premium set nowhere: reported empty, not 0', 'premium EMPTY',
+  $q$select 'premium ' || coalesce(grade_premium::text, 'EMPTY')
+     from resolve_area_settings('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select pune from k),
+                                (select fe550d from k))$q$);
+select pg_temp.expect_value('Loading set nowhere: reported empty for every size, not 0', 'loading EMPTY for all sizes',
+  $q$select case when bool_and(loading is null) then 'loading EMPTY for all sizes' else 'SOME SIZE HAS LOADING' end
+     from resolve_size_figures('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select pune from k))$q$);
+select pg_temp.expect_value('Discount set nowhere: reported empty (means no discount)', 'discount EMPTY',
+  $q$select 'discount ' || coalesce(discount_chart_id::text, 'EMPTY')
+     from resolve_area_settings('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select pune from k))$q$);
+
+select pg_temp.expect_value('D saves version 4: Pune with an explicit 0 area difference and 0 premium', 'saved',
+  $q$select case when save_area_settings((select tmt from k), jsonb_build_array(
+       jsonb_build_object('region_id', (select pune from k), 'area_difference', 0,
+         'size_chart_id', (select id from chart_ids where name = 'D Pune sizes'),
+         'grades', jsonb_build_array(jsonb_build_object('product_id', (select fe550d from k), 'premium', 0))))) is not null
+     then 'saved' end$q$);
+select pg_temp.expect_value('A zero the seller entered is reported as 0, not empty', 'area difference 0, premium 0',
+  $q$select 'area difference ' || coalesce(area_difference::text, 'EMPTY') || ', premium ' || coalesce(grade_premium::text, 'EMPTY')
+     from resolve_area_settings('00000000-0000-0000-0000-0000000000d4', (select tmt from k), (select pune from k),
+                                (select fe550d from k))$q$);

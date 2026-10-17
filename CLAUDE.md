@@ -164,6 +164,14 @@ final rate = base rate + grade premium + size difference + loading + area differ
 - **Size differences and loading are looked up one size at a time.** For each size, the closest area with a figure for that size wins: city, taluka, district, state, everywhere. An area only needs the sizes that differ. At each area a grade's own size chart is looked at before the family chart. Use `resolve_size_figures`; never pick one chart for all sizes.
 - **A selected size with no figure in any applicable area is an error, never zero.** Publishing flags it (`resolve_size_figures` marks it `is_missing`) and leaves that size out until it is fixed. The rate engine must never quote it.
 - **The more specific area wins**, for whether an area is served too: a city a seller names inside a district he excluded is served.
+- **Never assume zero for anything that could make a price cheaper.** If a setting is not set in any area covering the buyer, it is **missing**: the rate engine flags it and leaves that price out. A seller who means zero enters zero. This applies to:
+  - **base rate:** no price at all;
+  - **size difference**, per offered size: that size is left out;
+  - **loading**, per size;
+  - **area difference;**
+  - **grade premium**, per offered grade sold in the area, including the base grade, which needs an explicit 0.
+
+  Not set has a safe meaning only for: **discount** (no discount), **served** (not served), **grade sold here** (sold, if selected), and **display unit** (the seller's own pricing unit). The lookups report "not set" as empty and an entered zero as 0; never turn empty into 0. See docs/decisions.md 2.24.
 - A seller may publish one flat rate with no area configuration at all. This is a distinct mode and must not resolve as "not served".
 - Resolution must be a single indexed query, not a loop of separate lookups.
 
@@ -195,6 +203,7 @@ Example: Maharashtra → Chart A, +₹200. Pune → +₹300 (inherits Chart A). 
 - Sellers can hold multiple named charts of each type.
 - **The structure is fully flexible; the screens stay simple.** A seller with one chart never sees chart-assignment options. They appear only when he creates a second chart.
 - **The area setup screen shows coverage in plain words**, for example "Kolhapur district: not served, except Kolhapur city", so a seller sees at a glance where he actually serves.
+- **Zero is one tap.** Because a missing loading, area difference or grade premium is flagged rather than priced (section 8), the setup screen offers zero as a single choice, never a typed workaround: "I don't charge loading", "Same price in every area", "This is my base grade".
 - On a public profile, a visitor sees only the charts applying to his own area.
 - ALEE ships **template charts** for common configurations. A template is **copied** into the seller's own chart, never linked. Changing a template must never change any seller's existing rates.
 
@@ -353,6 +362,11 @@ Each engine is built once, tested thoroughly, and used everywhere. Screens never
 - A grade or size the seller has not selected is not offered
 - A selected size with no size-chart figure is left out and flagged, never quoted at zero
 - Size differences resolve per size: Maharashtra 8mm +6500, 10/12mm +5500 with Satara 10/12mm +5000 gives a Satara buyer 8mm +6500 and 10/12mm +5000
+- Loading not set in any area: flagged and left out, never priced at zero; loading entered as 0: priced with zero loading
+- Area difference not set in any area: flagged and left out; entered as 0: used
+- Grade premium not set for an offered grade (including the base grade): that grade flagged and left out; entered as 0: used
+- No base rate: no price shown
+- Discount not set anywhere: priced with no discount, nothing flagged
 - Flat-rate seller with no area configuration is served everywhere he sells
 - Different charts in different areas of the same state
 - Discount as a flat amount and as a percentage

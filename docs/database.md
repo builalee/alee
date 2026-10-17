@@ -310,6 +310,8 @@ What a seller attaches to areas, per product family: area difference, charts, gr
 
 **"Not set" and zero:** throughout these tables an empty field means **not set**, and the setting carries down from the area above. A value, **including 0**, means set here. Zero never carries down.
 
+**Not set anywhere:** the lookups return empty, never 0. For loading, area difference, grade premium and size difference, empty means **missing**: the rate engine must flag it and leave that price out, never price it at zero. A seller who means zero enters 0. Only a missing discount simply means no discount (decisions 2.24).
+
 ### `area_setting_versions` — each saved area setup
 
 | Field | Meaning |
