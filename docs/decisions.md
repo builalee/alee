@@ -1,0 +1,235 @@
+# ALEE — Decisions Record
+
+This file records **why** ALEE is built the way it is. CLAUDE.md says what the rules are; this says the reasoning behind them.
+
+Read this before changing anything that looks odd or overcomplicated. Most of it is deliberate, and most of it came from how the steel trade actually works or from why an earlier version of this product failed.
+
+When a decision changes, do not delete the old entry. Mark it superseded and add the new one, with the reason.
+
+---
+
+## Background: the earlier attempt
+
+A version of this product was built and used before. It reached five manufacturers and around fifty buyers, then stalled. Two causes:
+
+1. **Updating rates was hard.** The screens were clumsy, so sellers stopped publishing daily.
+2. **Buyers had no reason to come back.** They opened the app only when they needed a rate. If the seller hadn't updated, the rate was stale, and they stopped coming.
+
+The developers disappeared and no code survived. Many decisions below exist specifically to avoid repeating those two failures.
+
+---
+
+## 1. The product
+
+### 1.1 One publish, each buyer sees only his own final number
+**Decision:** A seller sets one base rate and area adjustments. A buyer in Sangli sees only the Sangli figure — never the base rate, never the adjustment.
+**Why:** Today a manufacturer sends separate WhatsApp messages to each area group. The adjustment is his pricing logic and, for a distributor, his margin. Exposing it would stop sellers from using ALEE at all.
+
+### 1.2 Publishing takes four taps, with yesterday's rate filled in
+**Decision:** Open, Publish, enter rate, confirm. A one-tap option moves every product at once.
+**Why:** The earlier version died because updating was harder than forwarding a WhatsApp message. If ALEE is slower than WhatsApp, sellers go back.
+
+### 1.3 The confirmation shows final rates per area, not the adjustments
+**Why:** The seller must see exactly what each area will receive before it goes out. He thinks in final numbers, and a mistake caught here never reaches a buyer.
+
+### 1.4 Market close
+**Decision:** Each seller sets a closing time. After it, his last rate stays visible, tagged "market closed", until he publishes again.
+**Why:** Without it, a quiet day looks the same as an abandoned profile. That ambiguity was part of what made the earlier version feel dead.
+
+### 1.5 Instant notifications, with alerts chosen per seller
+**Decision:** Every rate change notifies subscribers immediately. When subscribing, the buyer chooses whether he wants alerts from that seller.
+**Why:** The rate must come to the buyer rather than him remembering to look — that was the second failure. But a buyer following ten sellers who each publish twice a day would get twenty alerts and mute the app. Per-seller choice prevents that.
+
+### 1.6 One notification per publish, however many products changed
+**Why:** A seller who moves all ten products at once must not send ten messages. That is how an app gets muted on its first day.
+
+### 1.7 Public or private profiles, approval, and blocking
+**Decision:** Public: anyone who subscribes sees rates. Private: the seller approves each request. Either way, he can remove or block any subscriber.
+**Why:** A distributor will not publish where his manufacturer or a competitor can see his rates. Blocking also closes a specific gap: a manufacturer could register under another firm name and subscribe to his own distributor.
+
+### 1.8 Profiles are visible; rates and contact details are not
+**Decision:** Anyone can see a seller's store name, location, products, size differences and loading. Rates and phone number need a subscription.
+**Why:** A buyer needs enough to decide whether to subscribe. Size differences and loading are public for now — this is to be revisited, since one subscribed rate plus the public differences reveals a seller's full product ladder.
+
+### 1.9 Every account can buy and sell
+**Decision:** The role chosen at signup only sets which home screen appears first.
+**Why:** In this trade almost everyone is both. A retailer buys from wholesalers and sells to builders.
+
+### 1.10 Retailer stores and the supplier prompt
+**Decision:** Every retailer gets a shareable store profile. When a seller he subscribes to publishes, he is prompted to update his own rates in one tap.
+**Why:** Retailers update only when something moves upstream. Prompting at exactly that moment keeps their stores current without nagging them.
+
+### 1.11 Enquiries are direct, optionally anonymous, and sealed
+**Decision:** A buyer sends an enquiry to one seller, and can forward it to others without retyping. He may hide his name; the seller then sees area, buyer type and activity level. Each seller sees only his own quote.
+**Why:** A retailer will not shop around if his regular supplier can see him doing it. Sealed quotes stop sellers undercutting each other into a race to the bottom. The area and activity details tell a seller the enquiry is genuine without revealing who sent it.
+
+### 1.12 Territory allocation shows coverage only
+**Decision:** A manufacturer can hand an area to a distributor. He sees that the area is covered, never the distributor's rates. A buyer searching the manufacturer is pointed to the distributor.
+**Why:** The distributor's margin is his own business. Without this guarantee he will not accept the arrangement.
+
+### 1.13 Orders are in Phase 1, kept minimal
+**Decision:** The buyer places an order at the rate agreed on the phone, the seller accepts, and on dispatch the seller adds actual weight and vehicle number. A bill can be attached.
+**Why:** Rates published are not final — negotiation happens by phone and always will. What the trade lacks is a record of what was finally agreed. The commonest dispute in steel distribution is "you promised that rate"; an accepted order settles it. Built last in Phase 1, after publishing works.
+
+### 1.14 Client book, stripped down
+**Decision:** Contact import, name, phone, category, a tag or two, a note. No scoring.
+**Why:** Retailers have no customer records at all, so it helps a single user on day one. Behaviour scoring needs order data that won't exist yet.
+
+### 1.15 What is deliberately not built
+Ratings, AI suggestions, market averages, open bidding, dashboards and similar features are excluded from Phase 1 (full list in CLAUDE.md).
+**Why:** Every one of them needs many users to mean anything. On day one they show empty numbers, and an app full of zeros looks abandoned.
+
+---
+
+## 2. The pricing model
+
+### 2.1 The formula
+**base rate + grade premium + size difference + loading + area difference**, with trade discount shown separately beneath.
+
+### 2.2 Discount is shown as its own line
+**Why:** That is how it appears on the invoice. A discount shown on the bill reduces the value GST is charged on, so traders always refer to it separately.
+
+### 2.3 Settings attach to an area and resolve independently
+**Decision:** Size chart, loading chart, discount chart, grade premium, area difference, products sold, whether served, and display unit can each be set at any area level. Each is looked up separately, most specific area first, inheriting from above if not set.
+**Why:** Manufacturers genuinely vary these by area — Chart A for Maharashtra, Chart B for Karnataka, or Chart A for Pune and Chart B for Mumbai. Deeper markets work differently again. Treating each as an independent setting means the next variation discovered becomes one more setting, not a rebuild.
+
+### 2.4 Multiple charts, simple screens
+**Decision:** The structure allows any number of charts. A seller with one chart never sees chart-assignment options.
+**Why:** Flexibility makes software hard to use. The power sits underneath for the sellers who need it; everyone else sees a simple screen.
+
+### 2.5 Templates are copied, never linked
+**Decision:** ALEE provides ready-made charts. A seller's copy becomes his own.
+**Why:** Speeds up setup. Copying ensures a correction to a template can never silently change a seller's live rates.
+
+### 2.6 Grade premium, and sizes belong to the product family
+**Decision:** In Maharashtra and Goa a higher grade carries only a premium, and the same size differences apply to every grade. Sizes are listed once per product family, not once per grade. A size chart can still be assigned to a single grade where a region needs it.
+**Why:** That is how these markets price. It varies elsewhere, so grade premium is an area-level setting and per-grade charts remain possible.
+
+### 2.7 Units
+**Decision:** Each seller chooses, per product family, whether he prices per tonne or per kg. Buyers may see tonne, kg, piece or metre depending on their area. Every conversion goes through weight. Weight per piece is calculated, never stored.
+**Why:** The same item sells in different units in different places — pipes per kg in one area, per metre in another. A manufacturer quotes per tonne; a small retailer often per kg. Converting through weight means the seller maintains one price, not one per unit. Storing piece weight as well as metre weight would allow the two to disagree.
+
+### 2.8 Changing unit converts charts automatically
+**Why:** A size difference of ₹6,500 per tonne must become ₹6.50 per kg, or every rate is wrong by a factor of a thousand. The conversion is saved as a new version so past rates are untouched.
+
+### 2.9 Zero is a real value
+**Why:** An area difference of ₹0 means "same as base". If treated as "not set", the lookup falls through to a broader area and every buyer there is quoted wrongly — the kind of error nobody notices for weeks.
+
+### 2.10 Unverified weights cannot be used
+**Why:** A wrong weight produces a wrong converted rate. Sizes stay switched off until their weight is confirmed.
+
+---
+
+## 3. Regions
+
+### 3.1 Four levels: state, district, taluka, city
+**Why:** Taluka is where freight is actually priced. A district is too coarse, a village too fine. Sellers configure down to taluka; buyers register down to city.
+
+### 3.2 Most specific area wins, working outward
+**Why:** A seller sets one state figure and adds exceptions only where needed, instead of listing hundreds of cities.
+
+### 3.3 Exclusions are stored explicitly
+**Why:** Without them, a seller who sets "Maharashtra +₹200" would silently appear to serve districts 900km away that he cannot deliver to. One such enquiry damages trust in the rate itself.
+
+### 3.4 Start small, grow as needed
+**Decision:** States and districts are seeded. Talukas and cities are added as the business reaches them. Buyers can add a missing city; it waits for admin approval.
+**Why:** India has over 600,000 villages, most with no steel trade. Growth will be watched area by area. Approval prevents "Kolhapur", "Kolapur" and "Kolhapur City" becoming three places.
+
+### 3.5 Old names stay searchable
+**Why:** Aurangabad, Osmanabad and Ahmednagar were renamed in 2023. Traders will use the old names for years.
+
+### 3.6 Regions are never deleted
+**Why:** Districts get redrawn. In December 2025 Goa created Kushavati from four South Goa talukas. Rate history must still make sense against the boundaries as they were.
+
+### 3.7 Regions are always identified by ID, never by name
+**Why:** Sangli is a district, a taluka and a city at once.
+
+### 3.8 Other countries are not designed for yet
+**Why:** The four level names are Indian. Expansion abroad would need country-specific levels, but tax, currency and payments are the harder part, and designing for markets not served adds daily complexity.
+
+---
+
+## 4. History
+
+### 4.1 Settings are saved as versions
+**Decision:** Changing a chart or area setting creates a new version. Each publish records which versions applied.
+**Why:** An earlier design copied every area's final rate at each publish, writing roughly fifteen times more data. Versioning keeps history equally exact with far less storage.
+
+### 4.2 Nothing in the trade record is deleted
+**Why:** ALEE exists to be the record of what was quoted and agreed. A record that can be rewritten cannot settle a dispute. A wrong rate is corrected by publishing again; the wrong one stays, marked superseded.
+
+---
+
+## 5. Architecture
+
+### 5.1 One Next.js project; screens never reach the database directly
+**Why:** Keeping an API layer in between means a future move off Supabase changes one connection, not every screen. One project rather than two keeps setup and deployment simple for a solo build; the rule keeps the boundary real.
+
+### 5.2 Supabase and Postgres
+**Why:** ALEE's data is relational — sellers, areas, charts, subscriptions. Postgres handles that naturally, costs are predictable, and the data can move anywhere.
+
+### 5.3 TypeScript
+**Why:** The owner cannot read code fluently. TypeScript catches a whole class of errors — text where a price should be — before anything runs.
+
+### 5.4 Web app wrapped for Android and iOS
+**Why:** Profiles must open from a WhatsApp link. iOS is required for manufacturers, and one codebase serves web, Android and iOS.
+
+### 5.5 Central machinery
+**Decision:** Dates, money, rate calculation, permissions, text and settings each live in one place.
+**Why:** The earlier version repeated logic in many places. If the confirmation screen and the buyer's screen calculate a rate separately, they will eventually disagree, and a seller who cannot explain a number to his customer stops trusting ALEE.
+
+### 5.6 Engines are built and tested before screens
+**Why:** A screen built before its engine ends up doing the calculation itself, which breaks 5.5.
+
+---
+
+## 6. Security and privacy
+
+### 6.1 The database is the only real wall
+**Why:** The app's public key can be extracted by anyone. Every rule must hold for someone who skips the app entirely and asks the database directly.
+
+### 6.2 Phone numbers are private, and must be the person's own
+**Why:** Contact details are what a competitor would harvest. A person can only record the number he verified at login, so nobody can sign up as someone else's firm.
+
+### 6.3 Consent records can only be added to
+**Why:** They are proof. Proof that can be edited or back-dated is worthless.
+
+### 6.4 Actual transaction prices never feed averages without the seller's agreement
+**Why:** The price a seller actually gave a buyer reveals his discounts. If that leaked, ALEE would be finished in this trade.
+
+### 6.5 Admin reads are logged
+**Why:** The person who can see every seller's rates will one day be an employee.
+
+### 6.6 Payments never touch ALEE's servers, and are confirmed by the payment provider
+**Why:** It avoids handling card data entirely, and stops anyone forging a "payment succeeded" message to unlock paid features.
+
+### 6.7 Nothing is deleted when someone stops paying
+**Why:** Deleting a trader's records over a lapsed payment would destroy trust faster than anything else.
+
+---
+
+## 7. Storage
+
+### 7.1 Bills attach to orders, compressed and size-capped
+**Why:** The order holds the real data; the bill is supporting paperwork. Uncompressed phone photos would make storage costs roughly ten times higher at scale, and files saved at full size can never be shrunk afterwards.
+
+---
+
+## 8. How work is done
+
+- **Two databases.** Every change goes to alee-dev first. Mistakes cost nothing there.
+- **Every database change is a file**, with a header explaining what and why. Nothing is set up by clicking, so anyone can rebuild the database and see its history.
+- **A migration that has run is never edited.** Corrections are new migrations, so both databases always followed identical instructions.
+- **Checks after every change**, including an ordinary user trying to see what he shouldn't.
+
+---
+
+## 9. Open questions
+
+| Question | Notes |
+|---|---|
+| Account deletion vs the trade record | Deleting an account currently removes everything. Once orders exist, the other party must keep his order history and bills. Likely answer: remove personal details, keep the trade record without the name. Consent proof may also need keeping for a period. Take legal advice before launch. |
+| Public visibility of size differences and loading | Public for now; revisit. |
+| Angle and channel weights | Unverified and switched off. Confirm weights, whether 25×6 and 32×3 are traded, and the usual length (assumed 6m). |
+| Kushavati | Deferred. Add before any Goa talukas. |
+| Freight, credit terms, minimum quantity | After Phase 1. Credit terms and minimum quantity probably attach to the buyer rather than the area. |

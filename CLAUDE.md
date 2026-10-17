@@ -83,7 +83,21 @@ The owner is a steel trader with 15 years' industry experience. He is **not tech
 1. Confirm the table and columns exist as expected.
 2. Confirm Row Level Security is enabled.
 3. Run the access tests: sign in as an ordinary user and attempt to read and write data that user should not see. Every such attempt must be refused.
-4. Report results to the owner in plain language.
+4. Run **`npm run check:db`**. Every saved check must pass, not only the new ones.
+5. Report results to the owner in plain language.
+
+### Whenever a table changes
+Do all of these in the same piece of work as the migration. A table change is not finished until all are done:
+
+1. **Save its checks** in `tests/database/<area>.sql`, using the helpers in `tests/database/_helpers.sql`. **Every new table gets saved checks.** At minimum:
+   - Row Level Security is on;
+   - visitors and ordinary users are refused everything they should not read or change, including another person's private details;
+   - admins can do what they should;
+   - anything that must never be deleted cannot be.
+
+   Checks never commit. The runner rolls every file back. Never throw checks away after running them.
+2. **Update `docs/database.md`**: what the table holds in plain words, who can see and change it, and how it connects to other tables.
+3. **If a new decision was made**, by the owner or proposed and accepted, add an entry to `docs/decisions.md`. Never delete an old entry; mark it superseded and add the new one with the reason.
 
 ---
 
@@ -91,7 +105,7 @@ The owner is a steel trader with 15 years' industry experience. He is **not tech
 
 1. Change applied and tested on alee-dev.
 2. Committed to GitHub.
-3. On the owner's explicit instruction only: link the CLI to live, apply pending migrations, run the same access tests, then **link back to alee-dev immediately** and confirm.
+3. On the owner's explicit instruction only: link the CLI to live, apply pending migrations, run the same access tests (`npm run check:db -- --allow-live`; checks are rolled back and leave nothing behind), then **link back to alee-dev immediately** and confirm.
 
 Before launch, live may be updated at the end of each build stage. After launch: take a backup first, apply at a quiet time (not during morning publishing), and treat it as a deliberate checklist.
 
@@ -127,14 +141,14 @@ final rate = base rate + grade premium + size difference + loading + area differ
              (trade discount shown separately, beneath)
 ```
 
-1. **Base rate** — set by the seller, per the product's base unit (tonne or kg).
+1. **Base rate** — set by the seller, per **his unit for that product family** (tonne or kg).
 2. **Grade premium** — the premium a grade carries over the base (e.g. Fe550D over Fe500). An **area-level setting**, resolved like the charts (section 9). In Maharashtra and Goa it is a single premium per grade. *Design only — its table is built together with area settings.*
 3. **Size difference** — from the applicable size chart. A size chart is assigned **per segment by default**, and **per grade where a region needs it** (some regions give each grade its own size differences). Per-grade assignment has no screen yet, but nothing in the data model may prevent it.
 4. **Loading** — from the applicable loading chart.
 5. **Area difference** — for the buyer's area.
 6. **Trade discount** — from the applicable discount chart, flat or a percentage of value. **Not added into the rate**: shown as a separate line beneath it.
 
-**Loading and discount follow the product's base unit**: per tonne for tonne products, per kg for kg products. Never mix units inside one calculation.
+**Loading and discount follow the seller's unit for that product family**: per tonne if he prices that family per tonne, per kg if per kg. Never mix units inside one calculation.
 
 **Discount is shown to the buyer as a separate line beneath the rate**, e.g. `₹40,300 — less ₹500/tonne`. All other components are combined: the buyer sees only his final figure, never the base, the grade premium or the individual differences.
 
@@ -150,7 +164,8 @@ final rate = base rate + grade premium + size difference + loading + area differ
 - Resolution must be a single indexed query, not a loop of separate lookups.
 
 ### Units
-- The base rate is per the **product's base unit** — tonne or kg — not always per tonne.
+- **Each seller chooses, per product family, whether he prices per tonne or per kg.** This is the only pricing unit in ALEE. It starts from the family's catalogue default (all three families default to tonne) and the seller may change it. Grades carry no unit of their own: every grade in a family is priced in the seller's unit for that family.
+- The base rate, grade premium, size difference, loading, area difference and flat discount are all in that same unit.
 - Supported units: **tonne, kg, piece, metre**. Every conversion goes **through weight**, using the size's standard weight per metre and standard piece length.
 - Weight per piece = weight per metre × piece length. It is derived, never stored, so the two can never disagree.
 - The unit a buyer sees is the **display unit**, an area-level setting (section 9). Conversion to it happens in the rate engine, never in a screen.
@@ -254,13 +269,13 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 
 - **Segment** — a product family: TMT bars, angles, channels.
 - **Grade** — a product within a segment, e.g. Fe500D within TMT. Grades share the segment's size list.
-- **Base rate** — the seller's reference price, per the product's base unit (tonne or kg). Grades add a grade premium on top.
+- **Base rate** — the seller's reference price, per his unit for that product family (tonne or kg). Grades add a grade premium on top.
 - **Grade premium** — the premium a grade carries over the base rate. An area-level setting.
-- **Unit** — what a rate is quoted per: tonne, kg, piece or metre. Each product has a base unit (tonne or kg) the seller prices in; each area has a display unit the buyer sees. Units convert through weight.
+- **Unit** — what a rate is quoted per: tonne, kg, piece or metre. Each seller chooses, per product family, the unit he prices in (tonne or kg; starts from the family's default); each area has a display unit the buyer sees. Units convert through weight.
 - **Weight per metre** — the standard weight of one metre of a size, in kg (e.g. 12mm TMT = 0.888 kg/m, from IS 1786). The basis of every unit conversion; multiplied by piece length it gives the weight of one piece.
 - **Size difference** — the premium or discount for a particular size relative to base.
-- **Loading** — a handling charge added to the rate, per the product's base unit (per tonne or per kg).
-- **Trade discount** — an upfront discount, flat per base unit (tonne or kg) or a percentage, shown on the invoice.
+- **Loading** — a handling charge added to the rate, in the seller's unit for that product family (per tonne or per kg).
+- **Trade discount** — an upfront discount, flat per the seller's unit for that product family (tonne or kg) or a percentage, shown on the invoice.
 - **Taluka** — the administrative level between district and city; the level freight is typically priced at.
 - **Market close** — the seller's daily closing time; after it, his last rate shows tagged "market closed".
 - **Territory allocation** — a manufacturer assigning an area to a distributor, who then publishes his own rates there.
@@ -340,4 +355,9 @@ Each engine is built once, tested thoroughly, and used everywhere. Screens never
 
 ## 21. Further reference
 
-Detailed product background is in `docs/`. Read the relevant document before building a new area of the product.
+Read the relevant document before building a new area of the product:
+
+- **`docs/decisions.md`**: why ALEE is built the way it is, decision by decision, with the reasoning and open questions. Read it before changing anything that looks odd or overcomplicated; most of it is deliberate.
+- **`docs/database.md`**: every table, what it holds in plain words, who can see and change it, and how the tables connect.
+- **`README.md`**: setting up on a new laptop, how the folders are organised, and how to run the checks.
+- **`tests/database/`**: the saved database checks, run with `npm run check:db`.
