@@ -216,6 +216,26 @@ Which brands each seller sells, per product family, e.g. *Bala Traders – Tata 
 - **Transitional (decisions 2.44, removed in step 11):** adding a product family automatically adds a **Regular** brand line for it, so everything built before brands keeps working. Existing sellers' families were carried across as Regular lines.
 - **Checks:** `tests/database/seller_brands.sql`.
 
+### Factories (step 8)
+A brand can have several factories. Each is its own seller account, with its own rates, setup and closing time.
+
+| Table | What it holds |
+|---|---|
+| `brand_factories` | A factory account linked to a brand. `offered` → `active` (the factory accepted), `declined`, or `withdrawn` (the owner took it back); `active` → `left` (the factory left) or `ended` (the owner ended it). Moves forward only; brand and factory never change. |
+| `brand_factory_events` | Every step of a link, with time, who and whether an admin. Never changed. |
+| `factory_coverage_versions` | Saved versions of which factory covers which area, **per brand and product family**, with who saved it. Never edited. |
+| `factory_coverage_areas` | One factory per area in a version. Empty region = "everywhere", chosen explicitly. |
+
+- **Linking:**
+  - **`offer_factory_link(brand, factory)`:** only the brand's owner, or an admin, offers.
+  - **`respond_to_factory_link(link, accept)`:** only the factory accepts or declines.
+  - **`end_factory_link(link)`:** the factory leaves, or the owner ends the link or withdraws an offer.
+- **`save_factory_coverage(brand, family, areas)`:** only the owner (or an admin) saves. Every factory named must be linked (active) and must sell that brand in that family. Refusals are plain: "Farid Steel does not sell Check Steel Angles yet."
+- **`resolve_brand_factory(brand, family, area)`:** the factory serving a buyer's area, where the closer area wins. If that factory has since left, it says so (`factory_is_linked` false): the area isn't served until the owner reassigns it. There's never a quiet fall-back to another factory.
+- **Who sees:** the owner, the brand's linked factories and admins. Other sellers, buyers and visitors see nothing; to buyers the brand appears as one brand.
+- **Account deletion:** if a factory account is deleted, its coverage rows go with it (see the open question on account deletion).
+- **Checks:** `tests/database/factories.sql`.
+
 ---
 
 ## Area: accounts and sellers
