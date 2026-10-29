@@ -3,7 +3,7 @@
 ALEE is a rate publishing and trade record platform for the Indian steel trade: manufacturers, distributors, wholesalers and retailers.
 
 - **Publishing:** a seller publishes one base rate with area-based adjustments, and each subscribed buyer sees only the final rate for his own area.
-- **Phase 1** also covers enquiries, orders with dispatch details, territory allocation, retailer store profiles and a client book.
+- **Phase 1 (launch)** also covers enquiries, territory allocation, small retailers publishing their own rates, a client book with follow-ups, ALEE Assist, and the Android app. Orders, the iPhone app and online payments follow in Phase 1.1. The full lists are in CLAUDE.md section 18.
 - **Launch market:** Goa and Maharashtra. Products: TMT bars, angles, channels.
 
 ALEE is meant to become the record the trade relies on. **Correctness, consistency and an unalterable history matter more than speed.** A wrong rate shown to a buyer is the worst possible failure.

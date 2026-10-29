@@ -6,7 +6,7 @@ Read this fully before doing anything. These rules override defaults.
 
 ## 1. What ALEE is
 
-ALEE is a rate publishing and trade record platform for the Indian steel industry — manufacturers, distributors, wholesalers and retailers. A seller publishes one base rate per brand he sells, with area-based adjustments; each subscribed buyer sees only the final rate for his own area. Phase 1 also covers enquiries, orders with dispatch details, territory allocation, retailer store profiles and a client book.
+ALEE is a rate publishing and trade record platform for the Indian steel industry — manufacturers, distributors, wholesalers and retailers. A seller publishes one base rate per brand he sells, with area-based adjustments; each subscribed buyer sees only the final rate for his own area. Phase 1 (launch) also covers enquiries, territory allocation, small retailers publishing their own rates, a client book with follow-ups, and ALEE Assist. Orders with dispatch details follow in Phase 1.1. Scope by phase: section 18.
 
 ALEE is intended to become infrastructure — the system of record the trade relies on. That means **correctness, consistency and an unalterable history matter more than speed of delivery.** A wrong rate shown to a buyer is the worst possible failure.
 
@@ -34,7 +34,7 @@ The owner is a steel trader with 15 years' industry experience. He is **not tech
 3. **Permissions are enforced in the database** with Row Level Security. Never rely on hiding a button or a screen. Assume an attacker calls the API directly with a valid login.
 4. **Every database change is a migration file.** Never change structure by clicking in the Supabase dashboard.
 5. **Always work on alee-dev.** Never apply anything to the live database unless the owner explicitly asks. **State which database you are about to change before every database operation.**
-6. **Never delete** regions, charts, differences, rates, orders or bills. Deactivate instead. History must never change.
+6. **Never delete** regions, charts, differences, rates, orders or bills. Deactivate instead. History must never change. **The one exception:** per-buyer notification delivery records are kept for 90 days, then deleted. They are not part of the trade record; the publish itself is kept forever.
 7. **Never edit a migration that has already run anywhere.** If it was wrong, write a new migration that corrects it.
 8. **The secret key never reaches the browser.** Only variables prefixed `NEXT_PUBLIC_` may be used in client code.
 9. **TypeScript throughout.** No plain JavaScript.
@@ -50,7 +50,7 @@ The owner is a steel trader with 15 years' industry experience. He is **not tech
 
 - `.env.local` must point at alee-dev during development.
 - `.env.local` is never committed. Before any commit that adds a file containing secrets, run `git status` and confirm it is not listed.
-- Hosting: Vercel. Stack: Next.js (App Router, `src/`), TypeScript, Tailwind, Supabase Postgres, Capacitor for Android/iOS later, FCM and APNs for push.
+- Hosting: Vercel. Stack: Next.js (App Router, `src/`), TypeScript, Tailwind, Supabase Postgres, Capacitor: Android app at launch (Phase 1), iPhone app in Phase 1.1. FCM for push (APNs with the iPhone app).
 
 ---
 
@@ -236,7 +236,8 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 - **Rate resolution** — the single function in section 8. The publish confirmation screen, buyer feed, enquiries and orders must all call the same function. If two places calculate separately they will eventually disagree, and that destroys trust in the record.
 - **Permissions** — who can see and do what.
 - **User-facing text** — all strings in one file, to allow Marathi and Hindi later.
-- **Settings** — file size caps, enquiry expiry, free tier limits and similar values. Never hardcoded.
+- **Settings** — file size caps, enquiry expiry, free plan limits (taluka reach, customer limit, outside-buyer limit), nudge timings, the ALEE Assist minimum per product family, and similar values. Never hardcoded; admins change them. Plans are data too.
+- **Dates shown** as DD-MM-YYYY.
 
 ---
 
@@ -252,6 +253,8 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 - Sellers see subscriber name and city.
 - Enquiries: buyer identity is optional. If hidden, the seller sees area, buyer tier and activity level. A seller's quote is visible only to that buyer — never to other sellers.
 - Contact details and rates are hidden on a public profile until subscribed.
+- **Free retailers' reach:** buyers outside his reach see his profile but no rate ("[name] shares rates with buyers in [taluka]") until he approves their rate request. An approved outside buyer sees his own-area rate, labelled. Enforced by the rate engine and the database, never only on screen.
+- **The client book** is private to the retailer. Its customers, notes, tags (including payment tags) and activity never leave his account.
 
 ---
 
@@ -259,11 +262,14 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 
 - **Transacted prices** (from orders and bills) are the most sensitive data in the system. They must **never** feed any average, aggregate or analytics without the seller's explicit agreement.
 - Any future aggregate data is built only from voluntarily published rates or explicitly consented sources.
+- **A retailer's client book**, including notes and payment tags about his customers, never feeds any ALEE data or analysis.
 - Admin **reads** of seller data are logged, not only writes.
 
 ---
 
 ## 14. Bills and storage
+
+*Bills come with orders, in Phase 1.1.*
 
 - Bills are **attached to an existing order**, not uploaded independently.
 - Every upload is **compressed to roughly 200KB** and a hard size cap is enforced **before** upload. Files stored at full size cannot be shrunk later.
@@ -273,10 +279,13 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 
 ## 15. Security essentials
 
+- **Phone OTP is the only login.** Build and test with Supabase test phone numbers that use a fixed OTP (no SMS or DLT registration while building). At launch: SMS OTP, with WhatsApp OTP as the backup.
 - OTP requests rate-limited per phone number per hour.
 - Anti-scraping: rate limits per account, limits on subscription velocity, flag accounts that subscribe broadly but never enquire.
-- Payments via hosted checkout only; card details never reach ALEE servers. Payment confirmed server-side via signed callback, never trusted from the app.
-- Entitlements (what a paying seller can access) enforced in the database, not the screen.
+- **Phase 1:** no payments in the app. Paid plans are switched on by an admin after payment outside the app (invoice and bank transfer).
+- **Phase 1.1 online payments:** hosted checkout only; card details never reach ALEE servers. Payment confirmed server-side via signed callback, never trusted from the app.
+- Entitlements (what a seller's plan allows: reach, limits) are enforced in the database, not the screen.
+- **Higher roles** (wholesaler, distributor, manufacturer) are granted only by an admin approving a request; until then the account works as a retailer.
 - Consent logged separately from Terms at signup; every personal record traceable to one user ID so account deletion is complete.
 - Admins identified by `app_metadata.role = 'admin'`, which users cannot set themselves.
 
@@ -287,6 +296,7 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 - Commit regularly, in small logical steps.
 - Plain-language messages describing what changed and why, e.g. `Add regions table with four levels and renamed-district aliases`.
 - Never commit secrets. Check `git status` first.
+- **Never write prices, plan costs, commission rates, revenue figures or business strategy into the repository**: not in code, documents, comments or commit messages. Plans and limits are data that admins set.
 - Do not push without telling the owner what is being pushed.
 
 ---
@@ -308,45 +318,134 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 - **Trade discount** — an upfront discount, flat per the seller's unit for that product family (tonne or kg) or a percentage, shown on the invoice.
 - **Taluka** — the administrative level between district and city; the level freight is typically priced at.
 - **Market close** — the seller's daily closing time; after it, his last rate shows tagged "market closed".
-- **Territory allocation** — a manufacturer allocating an area, for one product family, to a distributor, who must accept. Type A: the distributor sets and publishes the price there. Type B: the manufacturer's own rate is shown there, tagged with the authorised distributor.
+- **Reach** — where a seller's rates can be seen. A free retailer's reach is his own taluka; paid plans extend it. Other roles are not reach-limited.
+- **Outside buyer** — a buyer beyond a retailer's reach whose rate request he approved; he sees the retailer's own-area rate, labelled.
+- **Client book** — a retailer's private list of his own customers (not necessarily on ALEE), with follow-ups and an activity log.
+- **ALEE Assist** — for large enquiries, the buyer can ask ALEE to find the best deal; ALEE handles it only where both sides agreed.
+- **Territory allocation** — a manufacturer allocating an area, for a brand he owns in one product family, to a distributor, who must accept. Type A: the distributor sets and publishes the price there. Type B: the manufacturer's own rate is shown there, tagged with the authorised distributor.
 
 ---
 
-## 18. Phase 1 scope — what is being built
+## 18. Scope by phase
 
-- **Accounts** — phone OTP login, role chosen at signup. Every account can both buy and sell.
+The database parts already built for later phases stay as they are. **Charging in Phase 1 is done outside the app, by invoice and bank transfer: no payment screens.** The charging rules are in docs/decisions.md section 10. Never write prices, plan costs, commission rates, revenue figures or business strategy anywhere in the repository (section 16).
+
+### Phase 1 (launch)
+- **Login** — phone OTP only. Built and tested with Supabase test phone numbers that use a fixed OTP, so no SMS or DLT registration is needed while building. At launch: SMS OTP, with WhatsApp OTP as the backup.
+- **Signup and roles** — anyone can sign up as a **retailer** immediately. Signing up as a **wholesaler, distributor or manufacturer is a request**: the account works as a retailer until an admin approves the higher role. Every request, approval and refusal is kept in history. Every account can both buy and sell.
 - **Seller setup** — profile, banner, location, market close time, public or private setting. The brands he sells per family (copy one brand's setup to another in one tap). Size, loading and discount charts, templates, area-level settings, per brand line.
 - **Publishing** — four taps maximum: open, Publish, enter rate (yesterday's pre-filled), confirm. The confirmation shows the **final rate for each area**, not the differences. Supports updating one brand line or all of them at once: every brand pre-filled from yesterday (`publish_prefill`), "move everything by ±₹X" as **one amount per product family** (`publish_moved`), confirm. One publish, one notification. **No line is ever silently skipped:**
   - **Rate needed:** lines with no rate yet, and families whose unit changed, are listed with a place to enter today's rate, and go out in the same publish.
   - **Not quoting:** paused lines are listed as "not quoting" and left untouched.
-- **Market close** — after the seller's close time, or straight away if he presses "close market now", his last rate still shows, tagged "market closed" with the closing time, until he publishes again. Separately, "not quoting today" switches a family off with one tap until he switches it back on or publishes that family. A daily closing time is required before the first publish; the setup screen pre-fills 6:00 PM so accepting it is one tap. Use `market_status`; never work this out in a screen.
-- **Search and public profile** — find sellers by product, area or name.
-- **Subscriptions** — subscribe to receive rates, alert preference chosen per subscription, approval for private profiles, blocking.
-- **Buyer feed** — subscribed sellers' current rates for the buyer's area, with history scoped to his area.
-- **Enquiries** — direct to a seller, optional buyer identity, forward to other sellers without retyping, private quotes. Allowed after the seller's market has closed: such an enquiry is marked "received after close", and the buyer is told the seller will respond when the market opens.
-- **Orders** — buyer places order at the verbally agreed rate, seller accepts, seller adds actual weight and vehicle number on dispatch, bill attached to the order. Built last in Phase 1, after publish and subscribe work end to end.
-- **Territory allocation** — manufacturer offers an area, per product family, to a distributor, who accepts or declines; Type A (distributor sets the price) or Type B (manufacturer sets the price, "authorised distributor" tag); either side can end it.
-- **Retailer stores** — every outlet gets a shareable store profile.
-- **Supplier prompt** — when a seller publishes, his subscribed retailers who also sell are prompted to update their own rates.
-- **Client book** — contact import, name, phone, category, one or two tags, a note.
-- **Admin** — manage regions, approve buyer-added cities, manage templates.
+- **Market close** — after the seller's close time, or straight away if he presses "close market now", his last rate still shows, tagged "market closed" with the closing time, until he publishes again. Separately, "not quoting today" switches a brand line off with one tap until he switches it back on or publishes it. A daily closing time is required before the first publish; the setup screen pre-fills 6:00 PM so accepting it is one tap. Use `market_status`; never work this out in a screen.
+- **Territory allocation** — both types, including the "Authorised distributor for [area]: [distributor]" tag. A manufacturer offers an area, for a brand he owns in a product family, to a distributor, who accepts or declines; either side can end it.
+- **Seller's subscriber list** — who follows his rates (name and city).
+- **For buyers** — location, search (sellers by product, area or name), public profiles, subscribe with an alert preference per subscription, a morning feed of subscribed sellers' current rates for his area (history scoped to his area), push alerts.
+- **Enquiries to sellers** — direct to a seller, optional buyer identity, forward to other sellers without retyping, private quotes. Allowed after the seller's market has closed: marked "received after close", and the buyer is told the seller will respond when the market opens. No charge for enquiries in Phase 1.
+- **Small retailers publishing their own rates** — with the free retailer package and paid reach below.
+- **Client book with follow-ups** — below.
+- **Sharing to WhatsApp** — a rate, or a store profile, shared to WhatsApp in one tap.
+- **Admin** — set up sellers; approve brands, buyer-added cities and higher roles; switch plans on and off; manage regions, templates and the settings below.
+- **ALEE Assist** — below.
+- **Nudges and "What you're missing" messages** — below.
+- **Android app.**
+- **Operations** — live database, daily backups with a **tested** restore, error and uptime alerts, saved checks that run automatically on every change.
+
+#### Free retailer package and paid reach
+- **Free:**
+  - rates visible only to buyers in **his own taluka** (from his profile location);
+  - a client book up to the customer limit, with follow-ups;
+  - his own store link, shareable and printable as a QR code;
+  - following any number of suppliers, with their rates in his morning feed;
+  - enquiries from buyers.
+- **Free plan area setup** is limited to his own taluka and places inside it. Trying to add any area beyond it shows "Upgrade to reach more areas" instead. **Enforced in the database, not only on screen.**
+- **Paid plans** extend reach to his whole district or state, and allow more customers. An admin switches a plan on after payment. Each plan is stored with start and end dates and history.
+- **When a plan lapses**, reach and limits return to the free level.
+  - Settings beyond his taluka stay saved but stop applying.
+  - Customers above the limit stay, but no more can be added.
+  - Nothing is deleted.
+- **The rate engine applies the reach limit**, so buyers outside it never see his rate unless he has approved them.
+- **Buyers outside a free retailer's reach** can find him and view his profile, but see no rate: "[name] shares rates with buyers in [taluka]." They cannot subscribe directly. They can:
+  - send him an **enquiry**, which he can quote or decline;
+  - **"Request rates"**: he approves or declines each request. An approved outside buyer receives his rates like a subscriber, but sees **his own-area rate, labelled**, e.g. "₹56,500 — Karad rate. Delivery to Pune: ask seller."
+- **Outside-buyer limit:** a free retailer can approve outside buyers up to the outside-buyer limit; beyond it he sees an upgrade prompt.
+- **Manufacturers, distributors and wholesalers are not reach-limited.**
+- **All limits are settings admins can change:**
+  - the taluka reach;
+  - the customer limit (starting at 30);
+  - the outside-buyer limit (starting at 10).
+
+  Plans and limits are stored as data, never hardcoded.
+
+#### Subscribers and the client book are separate lists
+- **Subscribers** are ALEE users following his rates. They are **never limited on any plan.**
+- **The client book** is his own private customer list. Its customers need not be on ALEE.
+- **Between the two lists:**
+  - one-tap **"Add to client book"** from any subscriber;
+  - **"Invite to ALEE"** from any client-book customer, which sends his store link on WhatsApp.
+
+#### Client book and follow-ups
+- **One ID per customer:** each customer has one fixed ID, used everywhere.
+- **Follow-ups:** each has a customer, due date, note, and pending or done.
+  - **Today and overdue:** a list of today's and overdue follow-ups, with a reminder alert on the day.
+  - **One tap:** to call or WhatsApp.
+- **Activity log:** each call, WhatsApp or visit is recorded and **never edited**. Tapping call or WhatsApp from a follow-up logs it automatically.
+- **What logging closes:** logging a call or visit closes that customer's follow-ups that are **due today or overdue**. Future-dated ones stay, with a one-tap option to close them too.
+- **Closing the loop:** whenever a follow-up is closed, ALEE asks straight away for the next follow-up date. He can skip it, but must choose to, so the loop is never left open by accident.
+- **Built to extend:** follow-up and activity records are built so they can later point to a customer's **site** or a **counter**, with exactly one of these set. Phase 1 uses customers only.
+- **Dates** are shown as **DD-MM-YYYY**.
+- **Private to him:** a retailer's notes and tags about his customers, including payment tags, never leave his account and never feed any ALEE data or analysis (section 13).
+
+#### Nudges and "What you're missing"
+- **Nudges** remind new or inactive retailers, for example:
+  - no rate published since joining;
+  - no customers added;
+  - rate not updated for several days;
+  - store link never shared.
+
+  The timings are settings, and a retailer can turn nudges off.
+- **"What you're missing"** is told to the retailer weekly:
+  - buyers outside his reach who tried to see his rates;
+  - enquiries and rate requests from outside his reach;
+  - reaching the customer or outside-buyer limits.
+
+  Each message has a link to upgrade, which in Phase 1 means contacting ALEE.
+
+#### ALEE Assist
+- **Default:** enquiries go to the seller.
+- **"Let ALEE find me the best deal":** for enquiries at or above a minimum quantity, the buyer can choose this, and the enquiry goes to ALEE's admin instead.
+- **The minimum:** set per product family (TMT starts at 20 tonnes); admins can change it. Kg or piece quantities are converted to tonnes through weight.
+- **Seller opt-in:** sellers can opt in to "ALEE may bring me deals", recorded with its date. The commercial terms are agreed outside the app and never stored in the repository.
+- **Both sides agree:** ALEE only brokers where both sides agreed.
+
+### Phase 1.1 (after launch)
+- iPhone app
+- **Orders** — buyer places an order at the verbally agreed rate, seller accepts, seller adds actual weight and vehicle number on dispatch, bill attached to the order
+- Storage tier
+- **Supplier prompt** — when a seller publishes, his subscribed retailers who also sell are prompted to update their own rates
+- Screens for brands with several factories (the database part is built)
+- Online payments
+- Featured placement, including "also ask these sellers" suggestions when a buyer compares
+
+### Phase 2
+Client book sites, counters, salespeople, reassignment, leads and stock levels.
 
 ---
 
 ## 19. Out of scope — do not build
 
-Do not build any of the following, even partially, even if it seems helpful. If a task appears to need one, stop and ask the owner.
+Do not build any of the following, even partially, even if it seems helpful. If a task appears to need one, stop and ask the owner. Anything listed under Phase 1.1 or Phase 2 in section 18 is also not built before its phase.
 
-- Ratings, reviews, following or any social features
+- Ratings, reviews, follower counts or any social features (following a supplier's rates is a subscription, and is in scope)
 - AI recommendations, win-chance scores, competitor comparison, market averages
-- Open marketplace or multi-seller bidding
-- Field sales team module (hierarchy, visits, expenses, attendance)
+- Open marketplace or multi-seller bidding (ALEE Assist is not bidding: ALEE handles a deal only where both sides agreed)
+- Field sales team module: hierarchy, visits by salespeople, expenses, attendance (a retailer logging his own calls and visits is in scope)
 - GST number verification (capture only)
 - Separate retail and bulk pricing
 - Freight, credit terms, minimum order quantity
 - Partial dispatch, order amendments, invoicing
 - Transporter role or delivery tracking
-- Payments and paid subscriptions
+- Payment screens or online payments in Phase 1 (paid plans are switched on by an admin after payment outside the app)
 - Dashboards or statistics that depend on data that will not yet exist
 
 **Every feature must work with very few users.** Empty statistics on day one make the product look abandoned.
@@ -361,13 +460,17 @@ Each engine is built once, tested thoroughly, and used everywhere. Screens never
 |---|---|
 | **Rate** | Returns a buyer's final rate from seller, **brand**, product, size and location. Applies factory coverage, territory, exclusions, area resolution, charts and discount. |
 | **Access** | Decides who can see and do what: subscription, public/private, approval, blocking, territory. |
-| **Notification** | On publish: finds recipients, respects alert settings, sends **one** message per publish event however many products changed, queues and retries. Publishing must return immediately without waiting for sends. |
+| **Notification** | On publish: finds recipients, respects alert settings, sends **one** message per publish event however many products changed, queues and retries. Publishing must return immediately without waiting for sends. Per-buyer delivery records are deleted after 90 days (the one exception to "never delete"). |
 | **Market status** | Open or closed now, from the seller's close time in IST. |
 | **History** | Records which chart and setting versions applied at each publish. |
-| **Supplier prompt** | Finds subscribed retailers who also sell, and prompts them. |
+| **Reach** | Decides which buyers may see a seller's rate: a free retailer's own taluka, his plan's wider reach, and the outside buyers he approved. Applied by the rate engine. |
+| **Plans and limits** | Which plan each seller is on (start, end, history), and the limits that follow from it, read from settings. |
+| **Follow-up** | Today's and overdue follow-ups, reminders, closing them when a call or visit is logged, and asking for the next date. |
+| **Nudge** | Reminders to new or inactive retailers and the weekly "What you're missing" message, from settings, respecting opt-out. |
+| **Supplier prompt** *(Phase 1.1)* | Finds subscribed retailers who also sell, and prompts them. |
 | **Search** | Sellers by product, area or name, including region aliases. |
-| **Order** | Moves orders between placed, accepted and dispatched; controls who can make each move. |
-| **Bill handling** | Compresses and size-checks uploads before storage. |
+| **Order** *(Phase 1.1)* | Moves orders between placed, accepted and dispatched; controls who can make each move. |
+| **Bill handling** *(Phase 1.1)* | Compresses and size-checks uploads before storage. |
 
 ### Build order rule
 **Engines are built and tested before any screen that uses them.** The rate engine in particular must pass every case below before any screen displays a price:
@@ -375,6 +478,9 @@ Each engine is built once, tested thoroughly, and used everywhere. Screens never
 - Two brands of one seller in one area resolve from their own settings and publishes, never each other's
 - A brand owner's rate comes from the factory covering the buyer's area (closer area wins); a factory that left means not offered, never another factory
 - Type B hides the appointed distributor's rate for that brand only; his other brands and other sellers of the brand are unaffected
+- A free retailer's rate is shown only to buyers in his own taluka; a buyer elsewhere sees none, unless his rate request was approved
+- An approved outside buyer sees the retailer's own-area rate, labelled ("₹56,500 — Karad rate. Delivery to Pune: ask seller.")
+- A lapsed plan: settings beyond his taluka stop applying, and are still saved
 - Exact city match
 - Fall back to taluka, then district, then state
 - Explicit exclusion overrides a broader served area

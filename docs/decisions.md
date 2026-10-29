@@ -57,6 +57,7 @@ The developers disappeared and no code survived. Many decisions below exist spec
 
 ### 1.10 Retailer stores and the supplier prompt
 **Decision:** Every retailer gets a shareable store profile. When a seller he subscribes to publishes, he is prompted to update his own rates in one tap.
+*(Updated 2026-10-29, see 9.1: the store profile, link and QR code are Phase 1; the supplier prompt moves to Phase 1.1.)*
 **Why:** Retailers update only when something moves upstream. Prompting at exactly that moment keeps their stores current without nagging them.
 
 ### 1.11 Enquiries are direct, optionally anonymous, and sealed
@@ -68,16 +69,18 @@ The developers disappeared and no code survived. Many decisions below exist spec
 **Why:** The distributor's margin is his own business. Without this guarantee he will not accept the arrangement.
 *(Extended 2026-10-17 by 2.33 to 2.36: this describes Type A, "distributor sets the price". There is also Type B, "manufacturer sets the price", where buyers see the manufacturer's rate tagged with the authorised distributor. Coverage-only still holds for both: the manufacturer never sees the distributor's rates or margin.)*
 
-### 1.13 Orders are in Phase 1, kept minimal
+### 1.13 Orders are ~~in Phase 1~~ in Phase 1.1, kept minimal
+*(Updated 2026-10-29, see 9.1: orders move to Phase 1.1, after launch. The reasoning below stands.)*
 **Decision:** The buyer places an order at the rate agreed on the phone, the seller accepts, and on dispatch the seller adds actual weight and vehicle number. A bill can be attached.
-**Why:** Rates published are not final — negotiation happens by phone and always will. What the trade lacks is a record of what was finally agreed. The commonest dispute in steel distribution is "you promised that rate"; an accepted order settles it. Built last in Phase 1, after publishing works.
+**Why:** Rates published are not final — negotiation happens by phone and always will. What the trade lacks is a record of what was finally agreed. The commonest dispute in steel distribution is "you promised that rate"; an accepted order settles it. ~~Built last in Phase 1, after publishing works.~~ Built in Phase 1.1.
 
 ### 1.14 Client book, stripped down
 **Decision:** Contact import, name, phone, category, a tag or two, a note. No scoring.
+*(Updated 2026-10-29, see 11.1: the client book now has follow-ups and an activity log. Still no scoring.)*
 **Why:** Retailers have no customer records at all, so it helps a single user on day one. Behaviour scoring needs order data that won't exist yet.
 
 ### 1.15 What is deliberately not built
-Ratings, AI suggestions, market averages, open bidding, dashboards and similar features are excluded from Phase 1 (full list in CLAUDE.md).
+Ratings, AI suggestions, market averages, open bidding, dashboards and similar features are excluded from Phase 1 (full list in CLAUDE.md section 19). ALEE Assist (11.3) is not open bidding: ALEE handles a deal only where both sides agreed.
 **Why:** Every one of them needs many users to mean anything. On day one they show empty numbers, and an app full of zeros looks abandoned.
 
 ---
@@ -484,6 +487,7 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 
 ### 4.2 Nothing in the trade record is deleted
 **Why:** ALEE exists to be the record of what was quoted and agreed. A record that can be rewritten cannot settle a dispute. A wrong rate is corrected by publishing again; the wrong one stays, marked superseded.
+*(One exception, 2026-10-29, see 9.4: per-buyer notification delivery records are deleted after 90 days. They are not part of the trade record.)*
 
 ---
 
@@ -500,6 +504,7 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 
 ### 5.4 Web app wrapped for Android and iOS
 **Why:** Profiles must open from a WhatsApp link. iOS is required for manufacturers, and one codebase serves web, Android and iOS.
+*(Updated 2026-10-29, see 9.1: the Android app launches in Phase 1; the iPhone app follows in Phase 1.1.)*
 
 ### 5.5 Central machinery
 **Decision:** Dates, money, rate calculation, permissions, text and settings each live in one place.
@@ -529,6 +534,7 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 
 ### 6.6 Payments never touch ALEE's servers, and are confirmed by the payment provider
 **Why:** It avoids handling card data entirely, and stops anyone forging a "payment succeeded" message to unlock paid features.
+*(Updated 2026-10-29, see 10.1: online payments come in Phase 1.1. In Phase 1, payment is made outside the app and an admin switches the plan on.)*
 
 ### 6.7 Nothing is deleted when someone stops paying
 **Why:** Deleting a trader's records over a lapsed payment would destroy trust faster than anything else.
@@ -538,6 +544,7 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 ## 7. Storage
 
 ### 7.1 Bills attach to orders, compressed and size-capped
+*(With orders, in Phase 1.1.)*
 **Why:** The order holds the real data; the bill is supporting paperwork. Uncompressed phone photos would make storage costs roughly ten times higher at scale, and files saved at full size can never be shrunk afterwards.
 
 ---
@@ -547,14 +554,170 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 - **Two databases.** Every change goes to alee-dev first. Mistakes cost nothing there.
 - **Every database change is a file**, with a header explaining what and why. Nothing is set up by clicking, so anyone can rebuild the database and see its history.
 - **A migration that has run is never edited.** Corrections are new migrations, so both databases always followed identical instructions.
-- **Checks after every change**, including an ordinary user trying to see what he shouldn't.
+- **Checks after every change**, including an ordinary user trying to see what he shouldn't. From launch, the saved checks run automatically on every change (9.1).
 
 ---
 
-## 9. Open questions
+## 9. Scope and phases (2026-10-29)
+
+### 9.1 Scope changed after an independent review
+**Decision (2026-10-29):** the build is split into **Phase 1 (launch)**, **Phase 1.1 (after launch)** and **Phase 2**. CLAUDE.md section 18 holds the lists.
+
+**Phase 1 (launch):**
+- phone OTP login;
+- seller setup;
+- four-tap publish with "move everything";
+- market close, "close market now" and "not quoting";
+- territory, both types, including the authorised-distributor tag;
+- the seller's subscriber list;
+- for buyers: location, search, profiles, subscribe with alerts, a morning feed and push alerts;
+- enquiries to sellers;
+- small retailers publishing their own rates;
+- a client book with follow-ups;
+- sharing rates or a store profile to WhatsApp;
+- admin to set up sellers and approve brands, cities and roles;
+- ALEE Assist;
+- nudges and "What you're missing" messages;
+- the Android app;
+- operations: a live database, daily backups with a tested restore, error and uptime alerts, and saved checks that run automatically on every change.
+
+**Phase 1.1:**
+- the iPhone app;
+- orders (place, accept, dispatch weight and vehicle number, attach bill);
+- a storage tier;
+- the supplier prompt;
+- screens for brands with several factories;
+- online payments;
+- featured placement, including "also ask these sellers" suggestions when a buyer compares.
+
+**Phase 2:** client book sites, counters, salespeople, reassignment, leads and stock levels.
+
+**Already built:** the database parts already built for later phases (for example factories and coverage) stay as they are.
+
+### 9.2 Login is phone OTP only
+**Decision (2026-10-29):**
+- **Only login:** phone OTP.
+- **While building:** built and tested with Supabase test phone numbers that use a fixed OTP, so no SMS or DLT registration is needed.
+- **At launch:** SMS OTP, with WhatsApp OTP as the backup.
+
+### 9.3 Signup and roles
+**Decision (2026-10-29):**
+- **Retailer:** anyone can sign up as a retailer immediately.
+- **Higher roles are a request:** signing up as a wholesaler, distributor or manufacturer is a request. The account works as a retailer until an admin approves the higher role.
+- **History:** every request, approval and refusal is kept.
+
+*(Updates 1.9: the role still only decides the first home screen, but the three higher roles now need approval, because they carry no reach limit; see 10.3.)*
+
+### 9.4 Notification delivery records are the one exception to "never delete"
+**Decision (2026-10-29):** per-buyer notification delivery records are kept for **90 days, then deleted**. The publish itself is kept forever.
+**Why:** a delivery record says only that a message reached a phone. It is not part of the trade record (4.2), and keeping every one forever would grow without limit and serve no dispute.
+
+---
+
+## 10. Charging, plans and the retailer package (2026-10-29)
+
+*Product rules only. Prices, plan costs, commission rates, revenue figures and business strategy are never written into the repository: not in code, documents, comments or commit messages.*
+
+### 10.1 Charging rules
+- **Publishing is free forever.** Buyers never pay.
+- **No charge for enquiries** in Phase 1.
+- **Phase 1 charging** is done outside the app, by invoice and bank transfer. There are no payment screens; online payments come in Phase 1.1.
+- **Plans and limits are data**, set by admins, never hardcoded. An admin switches a plan on after payment. Each plan is stored with start and end dates and history.
+
+### 10.2 The free retailer package
+**Free:**
+- his rates are visible to buyers in **his own taluka** (from his profile location);
+- a client book up to the customer limit, with follow-ups;
+- his own store link, shareable and printable as a QR code;
+- following any number of suppliers, with their rates in his morning feed;
+- enquiries from buyers.
+
+**Free plan area setup** is limited to his own taluka and the places inside it. Trying to add any area beyond it shows "Upgrade to reach more areas" instead. **Enforced in the database, not only on screen.**
+
+### 10.3 Reach
+- **Paid plans** extend a retailer's reach to his whole district or state, and allow more customers.
+- **Other roles:** manufacturers, distributors and wholesalers are not reach-limited.
+- **The rate engine applies the reach limit**, so buyers outside it never see his rate unless he has approved them.
+- **Buyers outside his reach** can find him and view his profile, but see no rate: "[name] shares rates with buyers in [taluka]." They cannot subscribe directly. They can:
+  - send him an **enquiry**, which he can quote or decline;
+  - **request rates**, which he approves or declines. An approved outside buyer receives his rates like a subscriber, but sees **his own-area rate, labelled**, e.g. "₹56,500 — Karad rate. Delivery to Pune: ask seller."
+- **Outside-buyer limit:** a free retailer can approve outside buyers up to the outside-buyer limit; beyond it, an upgrade prompt.
+
+### 10.4 When a plan lapses, nothing is deleted
+- **Limits return to free:** reach and limits return to the free level.
+- **Settings stay saved:** settings beyond his taluka stay saved but stop applying.
+- **Customers stay:** customers above the limit stay, but no more can be added.
+
+*(Consistent with 6.7.)*
+
+### 10.5 Limits are settings
+All limits are settings admins can change:
+- the taluka reach;
+- the customer limit (starting at 30);
+- the outside-buyer limit (starting at 10).
+
+### 10.6 Subscribers and the client book are separate lists
+- **Subscribers** are ALEE users following his rates. They are **never limited on any plan**.
+- **The client book** is his own private customer list. Its customers need not be on ALEE.
+- **Between the two:**
+  - one-tap "Add to client book" from any subscriber;
+  - "Invite to ALEE" from any client-book customer, which sends his store link on WhatsApp.
+
+**Why:** Limiting subscribers would cap the very reach that makes ALEE useful to everyone else. The client book is a different thing: his own records, for his own business.
+
+---
+
+## 11. Client book, nudges and ALEE Assist (2026-10-29)
+
+### 11.1 Client book and follow-ups
+**Decision (2026-10-29), adapted from the owner's Earlybird CRM logic:**
+- **One ID per customer:** each customer has one fixed ID, used everywhere.
+- **Follow-ups:** each has a customer, due date, note, and pending or done.
+  - **Today and overdue:** a list of today's and overdue follow-ups, with a reminder alert on the day.
+  - **One tap:** to call or WhatsApp.
+- **Activity log:** each call, WhatsApp or visit is recorded and **never edited**. Tapping call or WhatsApp from a follow-up logs it automatically.
+- **What logging closes:** logging a call or visit closes that customer's follow-ups that are due today or overdue. Future-dated ones stay, with a one-tap option to close them too.
+- **Closing the loop:** whenever a follow-up is closed, ALEE asks straight away for the next follow-up date. He can skip it, but must choose to, so the loop is never left open by accident.
+- **Built to extend:** follow-up and activity records are built so they can later point to a customer's **site** or a **counter**, with exactly one of these set. Phase 1 uses customers only; sites, counters, salespeople, reassignment, leads and stock levels are Phase 2.
+- **Dates** are shown as DD-MM-YYYY.
+- **Private to him:** a retailer's notes and tags about his customers, including payment tags, never leave his account and never feed any ALEE data or analysis.
+
+*(Updates 1.14, which described a stripped-down client book.)*
+
+### 11.2 Nudges and "What you're missing"
+- **Nudges** remind new or inactive retailers, for example:
+  - no rate published since joining;
+  - no customers added;
+  - rate not updated for several days;
+  - store link never shared.
+
+  The timings are settings, and a retailer can turn nudges off.
+- **"What you're missing"** is told to the retailer weekly:
+  - buyers outside his reach who tried to see his rates;
+  - enquiries and rate requests from outside his reach;
+  - reaching the customer or outside-buyer limits.
+
+  Each message has a link to upgrade, which in Phase 1 means contacting ALEE.
+
+**Why:** The earlier attempt died because sellers stopped publishing. These messages bring a quiet retailer back before he drifts away.
+
+### 11.3 ALEE Assist
+- **Default:** enquiries go to the seller.
+- **"Let ALEE find me the best deal":** for enquiries at or above a minimum quantity, the buyer can choose this, and the enquiry goes to ALEE's admin instead.
+- **The minimum:** set per product family (TMT starts at 20 tonnes); admins can change it. Kg or piece quantities are converted to tonnes through weight.
+- **Seller opt-in:** sellers can opt in to "ALEE may bring me deals", recorded with its date. The commercial terms are agreed outside the app and are not stored in the repository.
+- **Both sides agree:** ALEE only brokers where both sides agreed.
+
+**Why enquiries go to the seller by default:** sending every enquiry to ALEE would take away sellers' reason to publish, and make ALEE look like a competitor.
+
+---
+
+## 12. Open questions
 
 | Question | Notes |
 |---|---|
+| "Also ask these sellers" and competitor comparison (2026-10-29) | Phase 1.1 featured placement suggests other sellers when a buyer compares. CLAUDE.md section 19 excludes "competitor comparison". Before Phase 1.1 is built, settle where the line is: suggestions for a buyer to ask are not the same as showing sellers how competitors price, but the boundary should be written down. |
+| Client book customers and account deletion (2026-10-29) | A retailer's client book holds details of people who may not be on ALEE. Deleting the retailer's account removes them with it; a client-book customer has no account of his own to delete. Take legal advice before launch, alongside the account deletion question below. |
 | Account deletion vs the trade record | Deleting an account currently removes everything, **including his publishes** (nothing else can remove them). Once orders exist, the other party must keep his order history and bills. Likely answer: remove personal details, keep the trade record without the name. Consent proof may also need keeping for a period. Take legal advice before launch. |
 | ~~Publishing requirements~~ | **Confirmed 2026-10-17, see 2.32:** no publish without area settings or while an area points to a switched-off chart, with a plain message saying what to fix. |
 | ~~"Close market now" with no family named~~ | **Confirmed 2026-10-17:** closes every open family the seller deals in. |

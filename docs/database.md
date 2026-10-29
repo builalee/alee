@@ -625,11 +625,15 @@ About `resolve_territory`:
 
 ## Not built yet
 
-These appear in CLAUDE.md but have no tables yet:
+These appear in CLAUDE.md but have no tables yet. Phase 1 unless marked; phases are in CLAUDE.md section 18:
+
+- signup role requests and approvals; plans, reach and their limits; outside-buyer rate requests
+- client book, follow-ups and activity log; nudges and "What you're missing"
+- ALEE Assist (enquiry routing and seller opt-in); per-buyer notification delivery records (deleted after 90 days)
+- orders and bills *(Phase 1.1)*; supplier prompt *(Phase 1.1)*; online payments *(Phase 1.1)*
 
 - the rate engine itself (it will use `resolve_area_settings`, `resolve_size_figures` and `convert_per_unit`)
 - the area setup screen (it must show a plain coverage summary, e.g. "Kolhapur district: not served, except Kolhapur city")
 - notifications on publish (one per publish)
 - enquiries (an enquiry after close must be marked "received after close", and the buyer told the seller will respond when the market opens; an enquiry from a Type B territory area goes to the authorised distributor)
-- subscriptions, enquiries, orders, bills
-- client book
+- subscriptions and the buyer feed
