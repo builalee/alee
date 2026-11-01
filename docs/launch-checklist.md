@@ -57,6 +57,9 @@ No prices or amounts belong in this file.
 - [ ] **Spending caps set on Supabase, Vercel and the SMS provider**
   - **How to check:** in each account's billing settings, confirm a spending cap or alert is set, and that a warning email reaches the owner.
 
+- [ ] **Copies of all keys kept in a password manager, outside the laptop**
+  - **How to check:** open the password manager on a different device (for example the owner's phone), and confirm every key for alee-dev and The Alee App is there, along with the SMS provider and any other service keys. Then confirm that losing the laptop would lose no key.
+
 - [ ] **Two-step login on every account, with recovery codes kept offline** (GitHub, Supabase, Vercel, Google Play, domain)
   - **How to check:**
     1. For each account, sign out and back in, and confirm a second step is asked for.
