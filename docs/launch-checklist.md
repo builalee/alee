@@ -6,6 +6,12 @@ No prices or amounts belong in this file.
 
 ---
 
+- [ ] **No test phone numbers and no placeholder SMS settings on live**
+  - **How to check:**
+    1. In the Supabase dashboard for The Alee App, open Authentication → Sign In / Providers → Phone.
+    2. Confirm Test Phone Numbers and OTPs is empty.
+    3. Confirm a real SMS provider is set up, and send a real code to a real phone.
+
 - [ ] **Uptime and error alerts reach the owner's phone**
   - **How to check:**
     1. Take the preview site down on purpose (or point the uptime monitor at a page that doesn't exist).

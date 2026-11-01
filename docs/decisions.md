@@ -964,3 +964,27 @@ The same rules for every role:
 
 **Why:** the earlier attempt failed after launch, not before. These are the things that decide whether a bad morning is a five-minute fix or a lost week.
 
+---
+
+## 16. Manufacturer demo (2026-11-01)
+
+### 16.1 What the demo covers
+**Decision (2026-11-01, by the owner):**
+- **Area:** inside Maharashtra only, at district level. Goa and reach plans are not part of the demo.
+- **Sellers are public,** because subscribing is not in the demo and a private seller's rates would show to nobody.
+- **The demo runs on alee-dev.** The owner creates every account himself by signing up with its test number; nothing is pre-created.
+
+These limit the demo only. They change no Phase 1 rule.
+
+### 16.2 Test numbers need the SMS provider boxes filled
+**Found 2026-11-01:** Supabase won't save phone login with no SMS provider, even for test numbers, which never receive an SMS. On alee-dev the Twilio boxes hold placeholder words and no Twilio account exists. Supabase's documentation confirms placeholders only for local setups; on alee-dev the dashboard accepted them.
+- **Phone OTP stays the only login** (9.2). Email OTP was considered and dropped: it needs an outside email service, sends real emails, and would mean changing the rule that an account's phone is the login phone.
+- **The test codes are never written** in the repository, chat or any file.
+- **Before launch:** see `docs/launch-checklist.md`.
+
+### 16.3 The secret key is not on Vercel
+**Decision (2026-11-01):** the website works as the logged-in person, so Row Level Security decides everything. It needs only the publishable key. The secret key stays off Vercel until something truly requires it.
+
+### 16.4 `@supabase/ssr` keeps people logged in
+**Decision (2026-11-01, approved by the owner):** Supabase's own helper package (MIT licence) keeps the login in a browser cookie. Hand-built login handling is riskier than the small cost of one package.
+

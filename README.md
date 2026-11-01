@@ -99,7 +99,13 @@ Every check should pass. If one fails, stop and find out why before changing any
 | `AGENTS.md` | Notes for AI coding tools about this version of Next.js. It is maintained automatically by `next dev`. |
 | `.env.local` | Your connection settings. On your laptop only; never committed. |
 
-The API layer, central engines (rates, access, notifications…) and shared machinery (money, dates, text) described in CLAUDE.md are not built yet. So far the work has been on the database.
+| `src/lib/api/` | The API layer: the only code screens call for data. |
+| `src/lib/supabase/` | The connection to Supabase. Only the API layer and `src/proxy.ts` use it. |
+| `src/lib/text.ts` | Every word a user sees. |
+
+The rest of the API layer, and the shared machinery for money and dates described in CLAUDE.md, are built as each screen needs them. The rate engine and the other engines run in the database.
+
+**On Vercel** only the two `NEXT_PUBLIC_` values are set. The secret key is not (docs/decisions.md 16.3).
 
 ---
 
