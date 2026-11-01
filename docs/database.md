@@ -6,7 +6,7 @@ Every table in the database, what it holds in plain words, who can see and chang
 - **Keep it current:** whenever a table changes, update this page in the same piece of work (see CLAUDE.md, section 5).
 - **Checks:** each area has saved checks in `tests/database/`. Run them with `npm run check:db`.
 
-Last updated: 2026-10-29.
+Last updated: 2026-11-01.
 
 ---
 
@@ -601,9 +601,9 @@ About `resolve_territory`:
 
 ---
 
-## Area: roles, plans and reach
+## Area: roles, settings, plans and reach
 
-Who is a retailer, which plan each seller is on, and so how far his rates reach (docs/decisions.md 9.3, 10.1–10.5). **No price, plan cost or commission is stored anywhere.**
+Which role each account has, the limits admins set, which plans each seller holds, and so how far his rates reach (docs/decisions.md 9.3, 10, 14.1, 14.4). **No price, plan cost or commission is stored anywhere.**
 
 ### `role_requests` — every request for a higher role
 | Column | Meaning |
@@ -613,51 +613,78 @@ Who is a retailer, which plan each seller is on, and so how far his rates reach 
 | `status` | `requested` → `approved` or `refused`, once. |
 | `decided_by`, `decided_at` | The admin, and when. |
 
-- **Signing up** as a wholesaler, distributor or manufacturer creates a waiting request automatically. Until an admin approves it, the account **is a retailer**.
+- **Signing up** as a wholesaler, distributor or manufacturer creates a waiting request automatically. Until an admin approves it, the account **is a retailer**, with a retailer's reach.
+- **Who acted** (`decided_by` here, and the same in every table) is stored as a plain id, never linked to the login, so deleting an account is never blocked by a record that names him.
 - **`approved_role(account)`:** the role an account actually has: the latest approved one, otherwise retailer. Internal (the engines use it); nobody can call it directly.
 - **`request_role(role)`:** asking later. One waiting request at a time.
 - **`decide_role_request(request, approve)`:** admins only.
 - **Who sees:** each person his own requests; admins all. Nobody changes a decision or deletes a request, not even the database owner.
 - **Checks:** `tests/database/roles.sql`.
 
+### `settings` — values admins change without a code change
+| Key | Starts at |
+|---|---|
+| `free_reach_retailer` | `taluka` |
+| `free_reach_wholesaler`, `free_reach_distributor` | `district` |
+| `free_reach_manufacturer` | `state` |
+| `free_customer_limit` | 20 |
+| `free_outside_buyer_limit` | 10 |
+
+- **`change_setting(key, value)`:** admins only. A value of the wrong kind is refused ("must be a whole number", "must be taluka, district or state").
+- **`settings_history`:** every change, with the old and new value, who and when. Never changed or deleted.
+- **Lowering a limit** never deletes anything; it only stops more being added.
+- **Who sees:** logged-in users see settings; only admins see their history.
+- **Checks:** `tests/database/settings.sql`.
+
 ### `plans` — plans and their limits, set by admins
 | Column | Meaning |
 |---|---|
-| `name` | E.g. "Free". |
-| `is_free` | Exactly one plan is the free plan: what applies when no paid plan does. |
-| `reach_level` | How far a retailer's rates reach from his location: `taluka`, `district` or `state`. |
-| `customer_limit`, `outside_buyer_limit` | Limits. Empty = no limit. |
+| `name` | E.g. "District reach". |
+| `kind` | `reach` or `client_book`. A seller can hold one of each, both or neither. |
+| `reach_level` | Reach plans: how far his rates reach from his location: `taluka`, `district` or `state`. Used only if wider than his role's free reach. |
+| `extra_states` | Reach plans: how many extra states the admin may name when switching it on. |
+| `customer_limit` | Client-book plans: customers allowed. Empty = no limit. |
+| `outside_buyer_limit` | Reach plans: outside buyers he may approve. Empty = no limit. |
+| `is_free` | Only the old "Free (replaced by settings)" row, switched off 2026-11-01. Free limits now live in `settings`. |
 
-- **Seeded:** the free plan: reach taluka, 30 customers, 10 outside buyers (decision 10.5). Admins change these; they are settings, never hardcoded.
-- **Who sees and changes:** logged-in users see plans; only admins add or change them. The free plan can't be switched off. Nobody can delete a plan.
+- **Who sees and changes:** logged-in users see plans; only admins add or change them. A plan's kind never changes. Nobody can delete a plan.
 
-### `seller_plans` — which paid plan a seller is on, from when to when
-- One row each time an admin switches a plan on (`switch_on_plan(seller, plan, starts, ends)`; payment happens outside the app in Phase 1). Plans can't overlap.
+### `seller_plans` and `seller_plan_areas` — which paid plans a seller holds, and the states they add
+- One row each time an admin switches a plan on (`switch_on_plan(seller, plan, starts, ends, extra states)`; payment happens outside the app in Phase 1). Two plans of the same kind can't overlap. Extra states must be whole states, no more than the plan allows.
 - **Never changed**, except `end_plan_early(record)`, once. Never deleted. The history of every plan a seller had stays.
-- **`seller_plan_at(seller, moment)`:** the plan in force then, otherwise the free plan.
+- **`seller_plan_at(seller, kind)`:** the paid plan of that kind in force now, if any.
 - **Who sees:** the seller his own; admins all.
 
-### Reach: `seller_reach(seller, moment)`
-- **Only retailers are reach-limited.**
-- **Home area:** the taluka of his profile location (his location itself if it has no taluka above it). An approved outside buyer sees the rate for this area.
-- **Reach area:** his plan's level above his location: his taluka on the free plan, his district or state on a paid one.
-- **When a plan lapses**, reach returns to his taluka. His settings beyond it stay saved; the rate engine stops applying them.
-- Internal; the rate engine and the request functions use it.
+### Reach: `seller_reach(seller)` and `within_reach(seller, area)`
+- **Every seller has a reach** (decision 14.1). Free: his role's level from settings, taken from his profile location: a retailer's taluka, a wholesaler's or distributor's district, a manufacturer's state. A higher role counts only once approved.
+- **No area at that level above him** (for example a city directly under a district, for a retailer): his own location.
+- **Paid reach:** the wider of the free level and his reach plan's level, plus the states the plan names.
+- **Home area:** his own area at his free level. An approved outside buyer sees the rate for this area, labelled "[area] rate".
+- **When a plan lapses**, reach returns to the free level. His settings beyond it stay saved; the rate engine stops applying them.
+- **`client_book_limit(seller)`:** his client-book plan's limit, otherwise the free limit.
+- Internal; the rate engine, area setup and the request functions use them.
 - **Checks:** `tests/database/plans.sql`.
+
+### Area setup is limited to reach
+- **`area_settings_within_reach`** (a check on every area saved): an area beyond his reach is refused with "Upgrade to reach more areas. [Area] is outside your reach."
+- **Always allowed:** "everywhere" (it means every area he reaches) and exclusions.
+- **After a lapse:** an area already in his previous saved version may stay; a new one may not.
+- An admin acting for a seller is held to the same reach.
+- **Checks:** `tests/database/reach.sql`.
 
 ---
 
 ## Area: outside-buyer rate requests
 
-### `rate_requests` — a buyer outside a retailer's reach asking for his rates
+### `rate_requests` — a buyer outside a seller's reach asking for his rates
 | Column | Meaning |
 |---|---|
 | `seller_id`, `buyer_id` | Who asked whom. |
 | `status` | `requested` → `approved`, `declined` or `withdrawn`; `approved` → `ended`. Forward only. |
 | `requested_at`, `decided_at`, `closed_at`, `closed_by` | When, and who closed it. |
 
-- **`request_rates(seller)`:** only a buyer outside a reach-limited seller's reach can ask. One open request per pair at a time.
-- **`decide_rate_request(request, approve)`:** the seller (or an admin). Approving stops at his plan's outside-buyer limit, with "Upgrade to approve more."
+- **`request_rates(seller)`:** only a buyer outside the seller's reach can ask (every role has a reach). One open request per pair at a time.
+- **`decide_rate_request(request, approve)`:** the seller (or an admin). Approving stops at the outside-buyer limit (his reach plan's, or the free setting), with "Upgrade to approve more."
 - **`end_rate_request(request)`:** the buyer withdraws a waiting request; either side ends an approval.
 - **`is_approved_outside_buyer(seller, buyer)`:** internal, for the rate engine.
 - **Who sees:** the seller and the buyer their own requests; admins all. Nothing deleted.
@@ -665,33 +692,35 @@ Who is a retailer, which plan each seller is on, and so how far his rates reach 
 
 ---
 
-## Area: ex-works setting
+## Area: ex-works switches and plant city
 
-### `seller_ex_works_versions` — every change of a seller's ex-works setting
-| Column | Meaning |
-|---|---|
-| `is_on` | Whether buyers are shown his ex-works rate. **No row = off.** |
-| `plant_region_id` | His plant city, used for the "Ex-[plant city]" label and the settings the ex-works figure uses. |
-| `set_at`, `set_by`, `by_admin` | When, who, and whether an admin did it. |
+### `seller_ex_works_states` — ex-works on or off, per state
+- Each change is a new row (`state_id`, `is_on`, when, who, whether an admin). **No row = off.**
+- **`set_ex_works(state, on, seller)`:** a whole state only. Switching on only where his reach touches that state: "Ex-works can be switched on only where you reach. Upgrade to reach more areas." Switching off is always allowed.
 
-- **`set_ex_works(on, plant city, seller)`:** with no plant city named, the last one is kept, or his profile location is used. A free retailer can't switch it on ("Ex-works rates come with a paid plan."). An admin can act for a seller, recorded as admin.
-- **`ex_works_at(seller, moment)`:** the setting in force then. Internal, for the rate engine.
-- **Who sees:** the seller his own; admins all. Never changed or deleted: each change is a new row.
+### `seller_plant_cities` — his plant city
+- Each change is a new row. **No row = his profile location.**
+- **`set_plant_city(place, seller)`.**
+
+### Both
+- **`ex_works_for(seller, buyer's area)`:** whether ex-works is on in that area's state, and the plant city. Internal, for the rate engine.
+- **Who sees:** the seller his own; admins all. Never changed or deleted. An admin can act for a seller, recorded as admin.
+- *(Replaces `seller_ex_works_versions`, a single on/off switch, dropped 2026-11-01 while it held no rows.)*
 - **Checks:** `tests/database/ex_works.sql`.
 
 ---
 
 ## Area: the rate engine
 
-No tables: it reads everything above and records nothing. Decisions: CLAUDE.md section 8, docs/decisions.md 12.
+No tables: it reads everything above and records nothing. Decisions: CLAUDE.md section 8, docs/decisions.md 12 and 14.
 
 ### What it answers
 For one seller, brand, product family and buyer's area (optionally one grade and size, a buyer, or an earlier publish), one line per grade and size:
 - **the area rate:** basic + grade premium + size difference + loading + area difference, labelled "[area] rate";
-- **the ex-works rate**, where switched on: basic + grade premium + size difference + loading, at his plant city, labelled "Ex-[plant city]";
-- **the discount** beneath each: flat per unit, or that percentage of the figure;
+- **or the ex-works rate**, only where there is no area rate (an area he hasn't set up, or one with a missing setting) and ex-works is on in that state: basic + grade premium + size difference + loading at his plant city, labelled "Ex-[plant city]". **Never both.**
+- **the discount** beneath: flat per unit, or that percentage of the figure;
 - in the area's display unit, converted through weight and **rounded once to the paisa**;
-- open or closed, closing time, when published, whether it was a correction;
+- open or closed, closing time, when published, **published today or not** (earlier days are greyed out), whether it was a correction;
 - a tag or message, and a **status**.
 
 ### The order of checks
@@ -699,13 +728,14 @@ For one seller, brand, product family and buyer's area (optionally one grade and
 |---|---|---|
 | 1. Factory (brand owner and his factories, once coverage is set) | `served_by_factory` / `not_served` | "Check Shakti in Pune is supplied by Gopal Steel" / "Doesn't currently supply Pune" |
 | 2. Territory, per brand | `buy_from_distributor` (Type A) / `priced_by_brand_owner` (Type B, the distributor's own line) | "For Check Shakti in Sangli, buy from Dev Traders, the authorised distributor." No figure, no ex-works. Type B for the factory: priced, with the tag. |
-| 3. Reach (retailers) | `reach_limited` | "Tara Hardware shares rates with buyers in Karad." No figure, no ex-works. An approved outside buyer instead gets the home-area rate: "Karad rate. Delivery to Pune: ask seller." |
+| 3. Reach (every seller) | `reach_limited` | "Tara Hardware shares rates with buyers in Karad." No figure, no ex-works. An approved outside buyer instead gets the home-area rate, labelled "Karad rate". |
 | 4. Not quoting | `not_quoting` | "Not quoting today" |
 | 5. No publish yet | `not_published` | "No rate published yet" |
 | 6. Grade and size offered, grade sold here | `not_offered` | "Not offered" / "Fe500D is not sold in Sangli" |
-| 7. Served | `not_served` | "Doesn't currently supply Goa", plus ex-works if on |
-| 8–9. Settings from the publish's pinned versions; anything missing | `missing` | "Rate not available". The seller is told exactly what to fix. |
-| Otherwise | `priced` | The figures |
+| 7. Excluded | `not_served` | "Doesn't currently supply Kolhapur" |
+| 7. Not set up | `ex_works` / `price_on_request` | "₹55,750/tonne — Ex-Karad City" where on; otherwise "Price on request — send enquiry" |
+| 8–9. Settings from the publish's pinned versions; anything missing | `missing` (or `ex_works`, if on and the plant city's figures are complete) | "Rate not available". The seller is told exactly what to fix. |
+| Otherwise | `priced` | The area rate only |
 
 `reach_limited` is a distinct status so the weekly "What you're missing" message can count it.
 
@@ -714,10 +744,12 @@ For one seller, brand, product family and buyer's area (optionally one grade and
 |---|---|---|
 | `buyer_rate(...)` | The seller himself and admins, for now (buyers come with subscriptions). A visitor is told "Log in to see rates." | `buyer_rate_line`: final figures, labels, discount lines, unit, market, tag, message. **Never** the basic rate, grade premium or any individual difference. |
 | `seller_rate(...)` | The seller and admins | `rate_line`: every component in his pricing unit, where each came from, and what's missing. |
-| `rate_preview(brand, family, basic rate)` | The seller and admins | `rate_line` for every area in his current setup, worked out with the rate he's about to publish (default: his latest) and his **current** settings. Areas beyond his plan's reach show "Saved, not applied on your plan". For the publish confirmation. |
-| `rate_engine(...)` | Nobody directly | The shared engine all three use. |
+| `rate_preview(brand, family, basic rate)` | The seller and admins | `rate_line` for every area in his current setup, worked out with the rate he's about to publish (default: his latest) and his **current** settings. Areas beyond his reach show "Saved, not applied on your plan". For the publish confirmation. |
+| `ex_works_preview(brand, family, state, grade, size)` | The seller and admins | Before switching ex-works on in a state: what buyers in each district of that state within his reach, and each area of his setup there, would see. E.g. "Satara: Satara rate ₹56,250/tonne", "North Goa: Ex-Karad City ₹56,050/tonne". |
+| `rates_on_day(seller, brand, family, area, day)` | The seller and admins | Every publish of that brand line that day, exactly as published; or "No data available for that day". |
+| `rate_engine(...)` | Nobody directly | The shared engine they all use. |
 
-- **A past publish** rebuilds from the versions it pinned, so the figures are exactly as shown then, whatever has changed since.
+- **A past publish** returns only what the seller published, from the versions it pinned. Today's plan, territory, factory and ex-works arrangements are never applied to it. An area it didn't cover shows "No data available for that day" (decision 14.5).
 - **Checks:** `tests/database/rate_engine.sql`, covering every rate engine case in CLAUDE.md section 20.
 
 ---
@@ -751,8 +783,9 @@ For one seller, brand, product family and buyer's area (optionally one grade and
 
 These appear in CLAUDE.md but have no tables yet. Phase 1 unless marked; phases are in CLAUDE.md section 18:
 
-- the free plan's area-setup limit: saving an area beyond his taluka should show "Upgrade to reach more areas" (the rate engine already stops applying such areas)
-- screens for role requests, plans and outside-buyer requests (the database parts are built)
+- screens for role requests, plans, outside-buyer requests, ex-works (with its preview) and factories (the database parts are built)
+- the client book itself (its limit, `client_book_limit`, is built), the gap nudge, and "What you're missing" (built switched off; an admin switches it on per district)
+- the WhatsApp rate card, the seller's weekly chart, alerts that say what changed, the admin "who published today" screen, and language per state
 - logging admin reads of seller data (decision 6.5), with the API layer
 - client book, follow-ups and activity log; nudges and "What you're missing"
 - ALEE Assist (enquiry routing and seller opt-in); per-buyer notification delivery records (deleted after 90 days)

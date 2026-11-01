@@ -4,11 +4,14 @@
 -- Covers every rate engine case in CLAUDE.md section 20, and: factory
 -- selection; Type A pointer with no ex-works; Type B tag and the
 -- distributor's own rate hidden; another seller of the brand unaffected; a
--- free retailer seen from inside and outside his taluka; an approved
--- outside buyer's labelled own-area rate; a paid plan widening reach and a
--- lapse shrinking it; ex-works off by default, shown once on, shown alone
--- in an unserved area; a paid retailer's ex-works inside and outside his
--- paid reach; never for a free retailer; per kg and per piece with
+-- free retailer seen from inside and outside his taluka; a distributor's
+-- and a manufacturer's reach; an approved outside buyer's own-area rate,
+-- labelled only "[area] rate"; a paid plan widening reach and a lapse
+-- shrinking it, with settings kept; area setup beyond reach refused;
+-- ex-works off by default ("Price on request"), switched on per state, only
+-- in areas not set up, never beside an area rate, never outside reach,
+-- not blocked by a missing setting; a factory that left selling as an
+-- ordinary seller; a past day with no record; per kg and per piece with
 -- rounding to the paisa; flat and percentage discount; a past publish
 -- rebuilt exactly; the buyer's answer never holding the basic rate or any
 -- individual difference; who may ask.
@@ -62,6 +65,10 @@ insert into regions (name, level, parent_id, is_approved)
 select 'Check Kolhapur City', 'city', id, true from regions where level = 'district' and name = 'Kolhapur';
 insert into regions (name, level, parent_id, is_approved)
 select 'Check Kagal', 'taluka', id, true from regions where level = 'district' and name = 'Kolhapur';
+-- A state beyond everyone's reach.
+insert into regions (name, level, is_approved) values ('Check Gujarat', 'state', true);
+insert into regions (name, level, parent_id, is_approved)
+select 'Check Surat', 'district', id, true from regions where name = 'Check Gujarat';
 
 insert into accounts (id, full_name, phone, signup_role, region_id)
 select x.id::uuid, x.name, '+' || u.phone, x.role::account_role, r.id
@@ -118,7 +125,9 @@ select (select id from segments where name = 'TMT Bars') as tmt,
        (select id from regions where name = 'Check Karad City') as karad_city,
        (select id from regions where name = 'Check Haveli') as haveli,
        (select id from regions where name = 'Check Kolhapur City') as kolhapur_city,
-       (select id from regions where name = 'Check Kagal') as kagal;
+       (select id from regions where name = 'Check Kagal') as kagal,
+       (select id from regions where name = 'Check Gujarat') as gujarat,
+       (select id from regions where name = 'Check Surat') as surat;
 grant select on k to public;
 
 -- Grades and sizes by name.
@@ -141,6 +150,11 @@ $$;
 -- Higher roles approved by ALEE. Tara stays a retailer.
 select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
 select decide_role_request(id, true) from role_requests where status = 'requested';
+-- W, a wholesaler, reaches his district for free; his plan reaches all of
+-- Maharashtra and adds Goa.
+insert into plans (name, reach_level, extra_states) values ('Check State', 'state', 1);
+select switch_on_plan('00000000-0000-0000-0000-0000000000a1', (select id from plans where name = 'Check State'),
+                      now() - interval '1 day', now() + interval '1 year', array[(select goa from k)]);
 
 -- W sets up three brand lines --------------------------------------------------------
 
@@ -249,8 +263,8 @@ select pg_temp.expect_value('A Nashik buyer gets everything from Maharashtra',
 select pg_temp.expect_value('Explicit exclusion overrides Maharashtra: Kolhapur district is not served, no area rate',
   'not_served | Doesn''t currently supply Kolhapur',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select kolhapur from k), 'Fe500D', '12mm')$q$);
-select pg_temp.expect_value('A buyer outside every configured area is not served',
-  'not_served | Doesn''t currently supply Goa',
+select pg_temp.expect_value('A buyer in an area he has not set up (Goa, inside his reach), ex-works off: price on request',
+  'price_on_request | Price on request — send enquiry',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select goa from k), 'Fe500D', '12mm')$q$);
 select pg_temp.expect_value('Size differences per size: a Satara buyer gets 8mm +6,500 from Maharashtra and 12mm +5,000 from Satara',
   '10mm: 5000 from Satara, family chart | 12mm: 5000 from Satara, family chart | 8mm: 6500 from Maharashtra, family chart',
@@ -325,37 +339,47 @@ select pg_temp.expect_value('Per piece, rounded once to the paisa: 56,000 x 10.6
 
 -- Ex-works -----------------------------------------------------------------------------
 
-select pg_temp.expect_value('Ex-works is off by default: no ex-works line',
-  'priced | ₹56,500/tonne | Check Karad rate | less ₹500/tonne',
-  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select karad from k), 'Fe500D', '12mm')$q$);
-select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
-select pg_temp.expect_rows('W switches ex-works on', 1, $q$select set_ex_works(true)$q$);
-select pg_temp.expect_value('The plant city defaults to his profile location', 'on at Check Karad City',
-  $q$select 'on at ' || r.name from seller_ex_works_versions x join regions r on r.id = x.plant_region_id
-      where x.seller_id = '00000000-0000-0000-0000-0000000000a1' and x.is_on$q$);
-select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
-select pg_temp.expect_value('Served area shows both: Karad rate, and Ex-Check Karad City = 50,000 + 500 + 5,000 + 250 (no area difference)',
-  'priced | ₹56,500/tonne | Check Karad rate | less ₹500/tonne | Ex-Check Karad City ₹55,750/tonne | less ₹500/tonne',
-  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select karad from k), 'Fe500D', '12mm')$q$);
-select pg_temp.expect_value('Unserved area (Goa) shows ex-works only, and says he doesn''t supply Goa',
-  'not_served | Ex-Check Karad City ₹55,750/tonne | less ₹500/tonne | Doesn''t currently supply Goa',
+select pg_temp.expect_value('Ex-works is off by default: an area he has not set up (Goa) shows price on request',
+  'price_on_request | Price on request — send enquiry',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select goa from k), 'Fe500D', '12mm')$q$);
-select pg_temp.expect_value('Ex-works is the same figure for every buyer, in the buyer''s unit (Pune: per kg)',
-  'priced | ₹56/kg | Pune rate | less 1.5% (₹0.84/kg) | Ex-Check Karad City ₹55.75/kg | less ₹0.50/kg',
-  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select pune from k), 'Fe500D', '12mm')$q$);
-select pg_temp.expect_value('No ex-works where the area rate is missing', 'missing | Rate not available',
-  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select karad from k), 'Fe500D', '16mm')$q$);
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
-select set_ex_works(true, (select goa from k));
+select pg_temp.expect_rows('W switches ex-works on in Goa', 1, $q$select set_ex_works((select goa from k), true)$q$);
+select pg_temp.expect_rows('...and in Maharashtra', 1, $q$select set_ex_works((select mh from k), true)$q$);
+select pg_temp.expect_message('...but not in a state beyond his reach', 'Ex-works can be switched on only where you reach. Upgrade to reach more areas.',
+  $q$select set_ex_works((select gujarat from k), true)$q$);
 select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
-select pg_temp.expect_value('A plant city his settings don''t cover: no ex-works shown...',
+select pg_temp.expect_value('An area not set up, ex-works on: Ex-Check Karad City = 50,000 + 500 + 5,000 + 250, from the plant city''s settings',
+  'ex_works | Ex-Check Karad City ₹55,750/tonne | less ₹500/tonne',
+  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select goa from k), 'Fe500D', '12mm')$q$);
+select pg_temp.expect_value('An area he has set up shows its own rate only, never ex-works beside it',
   'priced | ₹56,500/tonne | Check Karad rate | less ₹500/tonne',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select karad from k), 'Fe500D', '12mm')$q$);
+select pg_temp.expect_value('...in any unit (Pune, per kg)', 'priced | ₹56/kg | Pune rate | less 1.5% (₹0.84/kg)',
+  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select pune from k), 'Fe500D', '12mm')$q$);
+select pg_temp.expect_value('An area he excluded is not supplied, with no ex-works', 'not_served | Doesn''t currently supply Kolhapur',
+  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select kolhapur from k), 'Fe500D', '12mm')$q$);
+select pg_temp.expect_value('A missing setting for the buyer''s area does not block ex-works when the plant city''s figures are complete (Check Shakti, Pune)',
+  'ex_works | Ex-Check Karad City ₹55,050/tonne',
+  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a1', (select shakti from k), (select pune from k), 'Fe500D', '12mm')$q$);
+select pg_temp.expect_value('...and the seller is still told what is missing for Pune',
+  'Loading for 12mm is not set for Pune. If you don''t charge loading, enter 0. / Area difference is not set for Pune. If the price there is your basic rate, enter 0.',
+  $q$select array_to_string(missing, ' / ') from seller_rate('00000000-0000-0000-0000-0000000000a1', (select shakti from k), (select tmt from k),
+       (select pune from k), pg_temp.grade('Fe500D'), pg_temp.size('12mm'))$q$);
+select pg_temp.expect_value('Neither complete (16mm has no size figure anywhere): no price', 'missing | Rate not available',
+  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select karad from k), 'Fe500D', '16mm')$q$);
+select pg_temp.expect_value('Ex-works never shows outside his reach', 'reach_limited | Wagh Steel shares rates with buyers in Maharashtra and Goa.',
+  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select surat from k), 'Fe500D', '12mm')$q$);
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select set_plant_city((select goa from k));
+select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
+select pg_temp.expect_value('A plant city his settings don''t cover: no ex-works, price on request',
+  'price_on_request | Price on request — send enquiry',
+  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select goa from k), 'Fe500D', '12mm')$q$);
 select pg_temp.expect_value('...and the seller is told why', 'Ex-works needs your settings to cover Goa, your plant city.',
   $q$select array_to_string(missing, ' / ') from seller_rate('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k),
-       (select karad from k), pg_temp.grade('Fe500D'), pg_temp.size('12mm'))$q$);
+       (select goa from k), pg_temp.grade('Fe500D'), pg_temp.size('12mm'))$q$);
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
-select set_ex_works(true, (select karad_city from k));
+select set_plant_city((select karad_city from k));
 select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
 
 -- The buyer's answer and the seller's answer ---------------------------------------------
@@ -367,7 +391,7 @@ select pg_temp.expect_value('A buyer''s answer has no basic rate, grade premium,
         and (a.attname like '%base%' or a.attname like '%premium%' or a.attname like '%size_difference%'
              or a.attname like '%loading%' or a.attname like '%area_difference%' or a.attname like '%missing%')$q$);
 select pg_temp.expect_value('...and no figure in it is the basic rate or a difference: only final figures and the discount',
-  '56500.00, 500.00, 55750.00, 500.00',
+  '56500.00, 500.00',
   $q$select concat_ws(', ', area_rate, area_discount, ex_works_rate, ex_works_discount)
      from buyer_rate('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k),
                      (select karad from k), pg_temp.grade('Fe500D'), pg_temp.size('12mm'))$q$);
@@ -378,8 +402,9 @@ select pg_temp.expect_value('The seller''s answer has every component and where 
          || ' | area ' || area_difference || ' from ' || area_difference_from || ' | discount ' || discount || ' from ' || discount_from
      from seller_rate('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k),
                       (select karad from k), pg_temp.grade('Fe500D'), pg_temp.size('12mm'))$q$);
-select pg_temp.expect_value('Open, with when it was published, and not a correction', 'open, published, not a correction',
-  $q$select market || case when published_at is not null then ', published' end || case when is_correction then ', correction' else ', not a correction' end
+select pg_temp.expect_value('Open, with when it was published (today), and not a correction', 'open, published today, not a correction',
+  $q$select market || case when published_at is not null and published_today then ', published today' end
+         || case when is_correction then ', correction' else ', not a correction' end
      from buyer_rate('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k),
                      (select karad from k), pg_temp.grade('Fe500D'), pg_temp.size('12mm'))$q$);
 
@@ -477,11 +502,11 @@ select pg_temp.simple_line('00000000-0000-0000-0000-0000000000b3', (select shakt
 select pg_temp.simple_line('00000000-0000-0000-0000-0000000000b5', (select shakti from k), 50000);
 select pg_temp.simple_line('00000000-0000-0000-0000-0000000000b5', (select regular from k), 46000);
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000b2');
-select set_ex_works(true);
+select set_ex_works((select mh from k), true);
 select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
 
-select pg_temp.expect_value('Factory selection: Farid''s rate in Satara (he covers Maharashtra), with his ex-works',
-  'priced | ₹53,000/tonne | Satara rate | Ex-Satara ₹53,000/tonne',
+select pg_temp.expect_value('Factory selection: Farid''s rate in Satara (he covers Maharashtra)',
+  'priced | ₹53,000/tonne | Satara rate',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000b2', (select shakti from k), (select satara from k), 'Fe500', '12mm')$q$);
 select pg_temp.expect_value('The closer area wins: a Pune buyer gets Gopal''s rate', 'priced | ₹54,000/tonne | Pune rate',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000b3', (select shakti from k), (select pune from k), 'Fe500', '12mm')$q$);
@@ -495,23 +520,31 @@ select pg_temp.expect_value('Type A: Farid''s rate is not shown in Sangli; the b
   'buy_from_distributor | For Check Shakti in Sangli, buy from Dev Traders, the authorised distributor.',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000b2', (select shakti from k), (select sangli from k), 'Fe500', '12mm')$q$);
 select pg_temp.expect_value('Type B: Farid''s own rate in Kolhapur, tagged with the authorised distributor',
-  'priced | ₹53,000/tonne | Kolhapur rate | Ex-Satara ₹53,000/tonne | Authorised distributor for Kolhapur: Bala Traders',
+  'priced | ₹53,000/tonne | Kolhapur rate | Authorised distributor for Kolhapur: Bala Traders',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000b2', (select shakti from k), (select kolhapur from k), 'Fe500', '12mm')$q$);
 select pg_temp.expect_value('The closer allocated area wins: Check Kagal (Type A to Dev) inside Kolhapur (Type B to Bala)',
   'buy_from_distributor | For Check Shakti in Check Kagal, buy from Dev Traders, the authorised distributor.',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000b2', (select shakti from k), (select kagal from k), 'Fe500', '12mm')$q$);
 select pg_temp.expect_value('An offer not yet accepted (Nashik) has no effect: Farid''s own settings decide',
-  'priced | ₹53,000/tonne | Nashik rate | Ex-Satara ₹53,000/tonne',
+  'priced | ₹53,000/tonne | Nashik rate',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000b2', (select shakti from k), (select nashik from k), 'Fe500', '12mm')$q$);
 select pg_temp.expect_value('Type B hides Bala''s own Check Shakti rate in Kolhapur, with no figure',
   'priced_by_brand_owner | Authorised distributor for Kolhapur. Check Shakti is sold there at the brand owner''s rate.',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000b5', (select shakti from k), (select kolhapur from k), 'Fe500', '12mm')$q$);
 select pg_temp.expect_value('...but not his other brands there (Regular)', 'priced | ₹51,000/tonne | Kolhapur rate',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000b5', (select regular from k), (select kolhapur from k), 'Fe500', '12mm')$q$);
-select pg_temp.expect_value('...nor his Check Shakti rate outside his area (Satara)', 'priced | ₹55,000/tonne | Satara rate',
-  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000b5', (select shakti from k), (select satara from k), 'Fe500', '12mm')$q$);
+select pg_temp.expect_value('...nor his Check Shakti rate where his allocation doesn''t apply (Check Kagal, Dev''s Type A)', 'priced | ₹55,000/tonne | Check Kagal rate',
+  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000b5', (select shakti from k), (select kagal from k), 'Fe500', '12mm')$q$);
+select pg_temp.expect_value('A distributor reaches his own district for free: Bala''s rate is not shown in Satara',
+  'reach_limited | Bala Traders shares rates with buyers in Kolhapur.',
+  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000b5', (select regular from k), (select satara from k), 'Fe500', '12mm')$q$);
+select pg_temp.expect_value('A past publish returns only what Farid published: today''s territory is not applied to it (Sangli)',
+  'past | ₹53,000/tonne',
+  $q$select concat_ws(' | ', market, area_rate_text) from buyer_rate('00000000-0000-0000-0000-0000000000b2', (select shakti from k),
+       (select tmt from k), (select sangli from k), pg_temp.grade('Fe500'), pg_temp.size('12mm'), null,
+       (select id from publishes where seller_id = '00000000-0000-0000-0000-0000000000b2'))$q$);
 select pg_temp.expect_value('Another seller of the brand (W) is unaffected by territory in Kolhapur',
-  'priced | ₹55,200/tonne | Kolhapur rate | Ex-Check Karad City ₹55,050/tonne',
+  'priced | ₹55,200/tonne | Kolhapur rate',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a1', (select shakti from k), (select kolhapur from k), 'Fe500D', '12mm')$q$);
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000b3');
 select end_factory_link(id) from brand_factories where factory_id = '00000000-0000-0000-0000-0000000000b3';
@@ -519,10 +552,17 @@ select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
 select pg_temp.expect_value('A factory that left: the brand owner''s rate is not offered in Pune, never another factory''s',
   'not_served | Doesn''t currently supply Pune',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000b2', (select shakti from k), (select pune from k), 'Fe500', '12mm')$q$);
+select pg_temp.expect_value('A factory that leaves the brand but keeps selling it is shown as an ordinary seller of that brand',
+  'priced | ₹54,000/tonne | Pune rate',
+  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000b3', (select shakti from k), (select pune from k), 'Fe500', '12mm')$q$);
+select pg_temp.expect_value('A manufacturer reaches his own state for free: Gopal''s rate is not shown in Goa',
+  'reach_limited | Gopal Steel shares rates with buyers in Maharashtra.',
+  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000b3', (select shakti from k), (select goa from k), 'Fe500', '12mm')$q$);
 
 -- A free retailer's reach -------------------------------------------------------------
 
--- Tara: Fe500 12mm, Maharashtra +0 (size +5,000, no loading), Check Karad +500.
+-- Tara sets up her own taluka only: Fe500 12mm in Check Karad, size +5,000,
+-- no loading, area difference +500.
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a2');
 insert into seller_grades (seller_id, brand_id, product_id, is_selected)
 values ('00000000-0000-0000-0000-0000000000a2', (select regular from k), pg_temp.grade('Fe500'), true);
@@ -534,19 +574,23 @@ insert into charts (seller_id, segment_id, chart_type, name) values
 select save_chart_version((select id from charts where name = 'T sizes'), 'tonne',
   jsonb_build_array(jsonb_build_object('size_id', pg_temp.size('12mm'), 'amount', 5000)));
 select save_chart_version((select id from charts where name = 'T loading'), 'tonne', '[{"size_id": null, "amount": 0}]');
-select save_area_settings((select tmt from k), jsonb_build_array(
-  jsonb_build_object('region_id', (select mh from k), 'size_chart_id', (select id from charts where name = 'T sizes'),
-    'loading_chart_id', (select id from charts where name = 'T loading'), 'area_difference', 0,
-    'grades', jsonb_build_array(jsonb_build_object('product_id', pg_temp.grade('Fe500'), 'premium', 0))),
-  jsonb_build_object('region_id', (select karad from k), 'area_difference', 500)), null, (select regular from k));
+create function pg_temp.t_area(p_region uuid, p_diff numeric) returns jsonb language sql as $$
+  select jsonb_build_object('region_id', p_region, 'size_chart_id', (select id from charts where name = 'T sizes'),
+    'loading_chart_id', (select id from charts where name = 'T loading'), 'area_difference', p_diff,
+    'grades', jsonb_build_array(jsonb_build_object('product_id', pg_temp.grade('Fe500'), 'premium', 0))) $$;
+select pg_temp.expect_message('A free retailer cannot set up Maharashtra, beyond her taluka', 'Upgrade to reach more areas. Maharashtra is outside your reach.',
+  $q$select save_area_settings((select tmt from k), jsonb_build_array(pg_temp.t_area((select mh from k), 0)), null, (select regular from k))$q$);
+select save_area_settings((select tmt from k), jsonb_build_array(pg_temp.t_area((select karad from k), 500)), null, (select regular from k));
 select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'brand_id', (select regular from k), 'base_rate', 50000)));
-select pg_temp.expect_message('A free retailer cannot switch ex-works on', 'Ex-works rates come with a paid plan. Contact ALEE to upgrade.',
-  $q$select set_ex_works(true)$q$);
+select pg_temp.expect_rows('A free retailer can switch ex-works on in her state; it shows only inside her reach', 1,
+  $q$select set_ex_works((select mh from k), true)$q$);
+select pg_temp.expect_message('...but not in a state beyond her reach', 'Ex-works can be switched on only where you reach. Upgrade to reach more areas.',
+  $q$select set_ex_works((select goa from k), true)$q$);
 select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
 
-select pg_temp.expect_value('Free retailer, buyer inside his taluka: priced', 'priced | ₹55,500/tonne | Check Karad City rate',
+select pg_temp.expect_value('Free retailer, buyer inside her taluka: her rate only', 'priced | ₹55,500/tonne | Check Karad City rate',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a2', (select regular from k), (select karad_city from k), 'Fe500', '12mm')$q$);
-select pg_temp.expect_value('Free retailer, buyer outside his taluka (Satara): no figure, no ex-works',
+select pg_temp.expect_value('Free retailer, buyer outside her taluka (Satara): no figure, no ex-works',
   'reach_limited | Tara Hardware shares rates with buyers in Check Karad.',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a2', (select regular from k), (select satara from k), 'Fe500', '12mm')$q$);
 select pg_temp.expect_value('A buyer outside reach is a distinct status the "What you''re missing" message can count', 'reach_limited',
@@ -558,8 +602,8 @@ select request_rates('00000000-0000-0000-0000-0000000000a2');
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a2');
 select decide_rate_request(id, true) from rate_requests where seller_id = '00000000-0000-0000-0000-0000000000a2';
 select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
-select pg_temp.expect_value('An approved outside buyer in Pune gets the own-area rate, labelled',
-  'priced | ₹55,500/tonne | Check Karad rate. Delivery to Pune: ask seller.',
+select pg_temp.expect_value('An approved outside buyer in Pune gets her own-area rate, labelled only "[area] rate"',
+  'priced | ₹55,500/tonne | Check Karad rate',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a2', (select regular from k), (select pune from k), 'Fe500', '12mm',
                       '00000000-0000-0000-0000-0000000000a3')$q$);
 select pg_temp.expect_value('...but another Pune buyer (not approved) still sees none', 'reach_limited',
@@ -567,35 +611,42 @@ select pg_temp.expect_value('...but another Pune buyer (not approved) still sees
        (select pune from k), pg_temp.grade('Fe500'), pg_temp.size('12mm'), '00000000-0000-0000-0000-0000000000b1')$q$);
 
 -- Paid plan: reach widens to Satara district.
-insert into plans (name, reach_level, customer_limit, outside_buyer_limit) values ('Check District', 'district', 100, 50);
+insert into plans (name, reach_level, outside_buyer_limit) values ('Check District', 'district', 50);
 create temp table tp as
 select switch_on_plan('00000000-0000-0000-0000-0000000000a2', (select id from plans where name = 'Check District'),
                       now() - interval '1 day', now() + interval '30 days') as id;
 grant select on tp to public;
-select pg_temp.as_user('00000000-0000-0000-0000-0000000000a2');
-select pg_temp.expect_rows('A paid retailer can switch ex-works on', 1, $q$select set_ex_works(true)$q$);
-select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
-select pg_temp.expect_value('A paid plan widens reach: a Satara buyer now sees his rate, and his ex-works (inside his paid reach)',
-  'priced | ₹55,000/tonne | Satara rate | Ex-Check Karad City ₹55,000/tonne',
+select pg_temp.expect_value('A paid plan widens reach to Satara; she has not set Satara up, so the buyer sees her ex-works rate',
+  'ex_works | Ex-Check Karad City ₹55,000/tonne',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a2', (select regular from k), (select satara from k), 'Fe500', '12mm')$q$);
-select pg_temp.expect_value('Outside his paid reach (Pune): no figure, no ex-works', 'reach_limited | Tara Hardware shares rates with buyers in Satara.',
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a2');
+select pg_temp.expect_rows('Inside her paid reach she can now set Satara up', 1,
+  $q$select save_area_settings((select tmt from k), jsonb_build_array(pg_temp.t_area((select karad from k), 500),
+       pg_temp.t_area((select satara from k), 0)), null, (select regular from k))$q$);
+select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'brand_id', (select regular from k), 'base_rate', 50000)));
+select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
+select pg_temp.expect_value('Once Satara is set up, the buyer sees her Satara rate only, never ex-works beside it', 'priced | ₹55,000/tonne | Satara rate',
+  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a2', (select regular from k), (select satara from k), 'Fe500', '12mm')$q$);
+select pg_temp.expect_value('Outside her paid reach (Pune): no figure, no ex-works', 'reach_limited | Tara Hardware shares rates with buyers in Satara.',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a2', (select regular from k), (select pune from k), 'Fe500', '12mm')$q$);
-select pg_temp.expect_value('An approved outside buyer gets the labelled own-area rate, without ex-works',
-  'priced | ₹55,500/tonne | Check Karad rate. Delivery to Pune: ask seller.',
+select pg_temp.expect_value('An approved outside buyer still gets her own-area rate, without ex-works', 'priced | ₹55,500/tonne | Check Karad rate',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a2', (select regular from k), (select pune from k), 'Fe500', '12mm',
                       '00000000-0000-0000-0000-0000000000a3')$q$);
 
 -- The plan lapses.
 select end_plan_early((select id from tp));
-select pg_temp.expect_value('A lapsed plan shrinks reach again: Satara buyer sees no rate', 'reach_limited | Tara Hardware shares rates with buyers in Check Karad.',
+select pg_temp.expect_value('A lapsed plan shrinks reach again: a Satara buyer sees no rate', 'reach_limited | Tara Hardware shares rates with buyers in Check Karad.',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a2', (select regular from k), (select satara from k), 'Fe500', '12mm')$q$);
-select pg_temp.expect_value('A free retailer never shows ex-works, though the setting stays saved',
-  'priced | ₹55,500/tonne | Check Karad City rate | setting saved: on',
-  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a2', (select regular from k), (select karad_city from k), 'Fe500', '12mm')
-         || ' | setting saved: ' || (select case when x.is_on then 'on' else 'off' end from seller_ex_works_versions x
-                                      where x.seller_id = '00000000-0000-0000-0000-0000000000a2' order by x.set_at desc limit 1)$q$);
-select pg_temp.expect_value('Settings beyond his taluka stay saved but stop applying ("saved, not applied on your plan")',
-  'Check Karad: priced | Maharashtra: not_on_plan, Saved, not applied on your plan',
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a2');
+select pg_temp.expect_rows('After the lapse she can still save, keeping Satara (saved, not applied)', 1,
+  $q$select save_area_settings((select tmt from k), jsonb_build_array(pg_temp.t_area((select karad from k), 600),
+       pg_temp.t_area((select satara from k), 0)), null, (select regular from k))$q$);
+select pg_temp.expect_message('...but cannot add a new area beyond her reach', 'Upgrade to reach more areas. Pune is outside your reach.',
+  $q$select save_area_settings((select tmt from k), jsonb_build_array(pg_temp.t_area((select karad from k), 600),
+       pg_temp.t_area((select satara from k), 0), pg_temp.t_area((select pune from k), 0)), null, (select regular from k))$q$);
+select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
+select pg_temp.expect_value('Settings beyond her taluka stay saved but stop applying ("saved, not applied on your plan")',
+  'Check Karad: priced | Satara: not_on_plan, Saved, not applied on your plan',
   $q$select string_agg(distinct p.area_name || ': ' || concat_ws(', ', p.status, case when p.status <> 'priced' then p.message end), ' | ')
      from rate_preview((select regular from k), (select tmt from k), null, '00000000-0000-0000-0000-0000000000a2') p
     where p.grade = 'Fe500' and p.size = '12mm'$q$);
@@ -612,14 +663,40 @@ select pg_temp.expect_value('Preview with the current settings: Satara 12mm uses
   $q$select size_difference::text from rate_preview((select regular from k), (select tmt from k), 51000) p
      where p.area_name = 'Satara' and p.grade = 'Fe500D' and p.size = '12mm'$q$);
 select pg_temp.expect_value('Preview shows ex-works where it is on, and what is not offered and missing, in one go',
-  'ex-works rows: 6, not offered: 108, missing: 13',
-  $q$select 'ex-works rows: ' || count(*) filter (where p.area_name = 'Satara' and p.ex_works_rate is not null)
+  'ex-works rows: 0, not offered: 108, missing: 13',
+  $q$select 'ex-works rows: ' || count(*) filter (where p.ex_works_rate is not null)
          || ', not offered: ' || count(*) filter (where p.status = 'not_offered')
          || ', missing: ' || count(*) filter (where p.status = 'missing')
      from rate_preview((select regular from k), (select tmt from k), 51000) p$q$);
 select pg_temp.expect_value('Preview without a rate uses his latest published basic rate (50,500)', '₹57,950/tonne',
   $q$select area_rate_text from rate_preview((select regular from k), (select tmt from k)) p
      where p.area_name = 'Satara' and p.grade = 'Fe500D' and p.size = '8mm'$q$);
+select pg_temp.expect_value('Ex-works preview for Goa, which he has not set up: every district sees his ex-works rate',
+  'North Goa: Ex-Check Karad City ₹56,050/tonne | South Goa: Ex-Check Karad City ₹56,050/tonne',
+  $q$select string_agg(area_name || ': ' || shows, ' | ') from ex_works_preview((select regular from k), (select tmt from k),
+       (select goa from k), pg_temp.grade('Fe500D'), pg_temp.size('12mm'))$q$);
+select pg_temp.expect_value('Ex-works preview for Maharashtra: areas he has set up keep their own rate',
+  'Kolhapur: Doesn''t currently supply Kolhapur | Nashik: Nashik rate ₹56,950/tonne | Satara: Satara rate ₹56,250/tonne | Check Karad: Check Karad rate ₹56,800/tonne',
+  $q$select string_agg(area_name || ': ' || shows, ' | ') from ex_works_preview((select regular from k), (select tmt from k),
+       (select mh from k), pg_temp.grade('Fe500D'), pg_temp.size('12mm'))
+     where area_name in ('Kolhapur', 'Nashik', 'Satara', 'Check Karad')$q$);
+
+-- Rates on a past day ----------------------------------------------------------------
+
+select pg_temp.expect_value('Today''s rates for Karad: both of today''s publishes, exactly as published',
+  'past ₹56,500/tonne | past ₹56,800/tonne',
+  $q$select string_agg(market || ' ' || area_rate_text, ' | ' order by published_at)
+     from rates_on_day('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k), (select karad from k),
+                       (now() at time zone 'Asia/Kolkata')::date, pg_temp.grade('Fe500D'), pg_temp.size('12mm'))$q$);
+select pg_temp.expect_value('A day with no publish: no data, never recreated', 'no_data | No data available for that day',
+  $q$select concat_ws(' | ', status, message)
+     from rates_on_day('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k), (select karad from k),
+                       (now() at time zone 'Asia/Kolkata')::date - 1, pg_temp.grade('Fe500D'), pg_temp.size('12mm'))$q$);
+select pg_temp.expect_value('An area that publish did not cover (Goa): no data, never an ex-works figure made up afterwards',
+  'no_data | No data available for that day',
+  $q$select concat_ws(' | ', status, area_rate_text, ex_works_text, message)
+     from buyer_rate('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k), (select goa from k),
+                     pg_temp.grade('Fe500D'), pg_temp.size('12mm'), null, (select first from pubs))$q$);
 
 -- Who may ask -------------------------------------------------------------------------
 
@@ -636,7 +713,7 @@ select pg_temp.expect_message('Another user cannot preview a seller''s rates', '
 select pg_temp.expect_refused('Nobody can call the engine directly',
   $q$select * from rate_engine('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k), (select karad from k))$q$);
 select pg_temp.expect_refused('Nobody can read another seller''s ex-works setting or plan by calling the lookups',
-  $q$select * from ex_works_at('00000000-0000-0000-0000-0000000000a1')$q$);
+  $q$select * from ex_works_for('00000000-0000-0000-0000-0000000000a1', (select karad from k))$q$);
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select pg_temp.expect_value('The seller sees his own breakdown', '50500',
   $q$select base_rate::text from seller_rate('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k),

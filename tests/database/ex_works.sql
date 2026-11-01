@@ -1,16 +1,15 @@
 -- ============================================================
--- Checks: the ex-works setting (seller_ex_works_versions, set_ex_works,
--- ex_works_at).
--- Covers: off by default; a wholesaler switches it on and the plant city
--- defaults to his profile location; naming another plant city; switching
--- off keeps the plant city; the setting at an earlier moment; a free
--- retailer cannot switch it on, a paid one can; only the seller (or an
--- admin, recorded as admin) changes it; each seller sees only his own;
--- nothing is changed or deleted.
+-- Checks: the ex-works switches and plant city (seller_ex_works_states,
+-- seller_plant_cities, set_ex_works, set_plant_city, ex_works_for).
+-- Covers: off by default in every state; switched on per state; only
+-- where his reach touches that state; the plant city defaults to his
+-- profile location and can be changed; switching off; only the seller (or
+-- an admin, recorded as admin) changes them; each seller sees only his
+-- own; nothing is changed or deleted.
 --
 -- Test people (temporary logins, rolled back):
---   W ...a1  wholesaler (approved) at Satara
---   T ...a2  retailer at Satara (free plan, then paid)
+--   W ...a1  wholesaler (approved) at Satara (reaches Satara district)
+--   T ...a2  retailer at Satara
 --   C ...c3  admin
 -- ============================================================
 
@@ -29,57 +28,72 @@ select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
 select decide_role_request(id, true) from role_requests where status = 'requested';
 select pg_temp.as_owner();
 
-create function pg_temp.xw(p_seller uuid, p_at timestamptz default null) returns text language sql as $$
-  select case when x.is_on then 'on' else 'off' end || coalesce(' at ' || x.plant_name, '') from ex_works_at(p_seller, p_at) x
+create temp table k as
+select (select id from regions where level = 'state' and name = 'Maharashtra') as mh,
+       (select id from regions where level = 'state' and name = 'Goa') as goa,
+       (select id from regions where level = 'district' and name = 'Satara') as satara,
+       (select id from regions where level = 'district' and name = 'Pune') as pune,
+       (select id from regions where level = 'district' and name = 'North Goa') as north_goa;
+grant select on k to public;
+
+create function pg_temp.xw(p_seller uuid, p_region uuid) returns text language sql as $$
+  select case when x.is_on then 'on' else 'off' end || ', plant ' || x.plant_name from ex_works_for(p_seller, p_region) x
 $$;
 
-select pg_temp.expect_value('Row Level Security is on', 'true',
-  $q$select relrowsecurity::text from pg_class where oid = 'public.seller_ex_works_versions'::regclass$q$);
-select pg_temp.expect_value('Off by default', 'off', $q$select pg_temp.xw('00000000-0000-0000-0000-0000000000a1')$q$);
+select pg_temp.expect_value('Row Level Security is on', 'seller_ex_works_states=true, seller_plant_cities=true',
+  $q$select string_agg(relname || '=' || relrowsecurity, ', ' order by relname) from pg_class
+     where oid in ('public.seller_ex_works_states'::regclass, 'public.seller_plant_cities'::regclass)$q$);
+select pg_temp.expect_value('Off by default; the plant city defaults to his profile location', 'off, plant Satara',
+  $q$select pg_temp.xw('00000000-0000-0000-0000-0000000000a1', (select pune from k))$q$);
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
-select pg_temp.expect_rows('W switches it on', 1, $q$select set_ex_works(true)$q$);
+select pg_temp.expect_rows('W switches ex-works on in Maharashtra, where his reach is', 1,
+  $q$select set_ex_works((select mh from k), true)$q$);
+select pg_temp.expect_message('...not in Goa, beyond his reach', 'Ex-works can be switched on only where you reach. Upgrade to reach more areas.',
+  $q$select set_ex_works((select goa from k), true)$q$);
+select pg_temp.expect_message('It is switched per state, never a district', 'Ex-works is switched on for a whole state.',
+  $q$select set_ex_works((select satara from k), true)$q$);
+select pg_temp.expect_rows('He names Pune as his plant city', 1, $q$select set_plant_city((select pune from k))$q$);
 select pg_temp.as_owner();
-create temp table moment as select clock_timestamp() as at;
-grant select on moment to public;
-select pg_temp.expect_value('The plant city defaults to his profile location', 'on at Satara',
-  $q$select pg_temp.xw('00000000-0000-0000-0000-0000000000a1')$q$);
+select pg_temp.expect_value('On for every area of Maharashtra, with the new plant city', 'on, plant Pune',
+  $q$select pg_temp.xw('00000000-0000-0000-0000-0000000000a1', (select satara from k))$q$);
+select pg_temp.expect_value('...still off in Goa', 'off, plant Pune',
+  $q$select pg_temp.xw('00000000-0000-0000-0000-0000000000a1', (select north_goa from k))$q$);
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
-select pg_temp.expect_rows('He names Pune as his plant city', 1,
-  $q$select set_ex_works(true, (select id from regions where level = 'district' and name = 'Pune'))$q$);
-select pg_temp.expect_rows('He switches it off', 1, $q$select set_ex_works(false)$q$);
+select pg_temp.expect_rows('He switches it off; switching off is always allowed', 1,
+  $q$select set_ex_works((select mh from k), false)$q$);
 select pg_temp.as_owner();
-select pg_temp.expect_value('Off, and the plant city is kept for next time', 'off at Pune',
-  $q$select pg_temp.xw('00000000-0000-0000-0000-0000000000a1')$q$);
-select pg_temp.expect_value('The setting at an earlier moment is kept', 'on at Satara',
-  $q$select pg_temp.xw('00000000-0000-0000-0000-0000000000a1', (select at from moment))$q$);
+select pg_temp.expect_value('Off again; every change is kept', 'off, plant Pune, 2 changes',
+  $q$select pg_temp.xw('00000000-0000-0000-0000-0000000000a1', (select satara from k)) || ', '
+         || (select count(*) from seller_ex_works_states where seller_id = '00000000-0000-0000-0000-0000000000a1') || ' changes'$q$);
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select pg_temp.expect_message('A place that does not exist', 'Choose your plant city from the list of places.',
-  $q$select set_ex_works(true, gen_random_uuid())$q$);
+  $q$select set_plant_city(gen_random_uuid())$q$);
 select pg_temp.expect_message('He cannot change another seller''s setting', 'You can only change your own ex-works setting.',
-  $q$select set_ex_works(true, null, '00000000-0000-0000-0000-0000000000a2')$q$);
-select pg_temp.expect_refused('He cannot write the setting directly',
-  $q$insert into seller_ex_works_versions (seller_id, is_on, plant_region_id, set_by, by_admin)
-     select '00000000-0000-0000-0000-0000000000a2', true, id, '00000000-0000-0000-0000-0000000000a1', false from regions where name = 'Pune' limit 1$q$);
+  $q$select set_ex_works((select mh from k), true, '00000000-0000-0000-0000-0000000000a2')$q$);
+select pg_temp.expect_message('...or plant city', 'You can only change your own plant city.',
+  $q$select set_plant_city((select pune from k), '00000000-0000-0000-0000-0000000000a2')$q$);
+select pg_temp.expect_refused('He cannot write a switch directly',
+  $q$insert into seller_ex_works_states (seller_id, state_id, is_on, set_by, by_admin)
+     values ('00000000-0000-0000-0000-0000000000a2', (select mh from k), true, '00000000-0000-0000-0000-0000000000a1', false)$q$);
+select pg_temp.expect_refused('He cannot read the lookup for another seller',
+  $q$select * from ex_works_for('00000000-0000-0000-0000-0000000000a2', (select satara from k))$q$);
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a2');
-select pg_temp.expect_message('A free retailer cannot switch it on', 'Ex-works rates come with a paid plan. Contact ALEE to upgrade.',
-  $q$select set_ex_works(true)$q$);
-select pg_temp.expect_rows('A free retailer sees none of W''s setting', 0, $q$select * from seller_ex_works_versions$q$);
+select pg_temp.expect_rows('A retailer can switch it on in his state too (it shows only inside his reach)', 1,
+  $q$select set_ex_works((select mh from k), true)$q$);
+select pg_temp.expect_rows('He sees only his own switch, none of W''s', 1, $q$select * from seller_ex_works_states$q$);
+select pg_temp.expect_rows('...nor W''s plant city', 0, $q$select * from seller_plant_cities$q$);
 
-select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
-insert into plans (name, reach_level) values ('Check District', 'district');
-select switch_on_plan('00000000-0000-0000-0000-0000000000a2', (select id from plans where name = 'Check District'),
-                      now() - interval '1 day', now() + interval '30 days');
-select pg_temp.as_user('00000000-0000-0000-0000-0000000000a2');
-select pg_temp.expect_rows('A paid retailer can switch it on', 1, $q$select set_ex_works(true)$q$);
 select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
 select pg_temp.expect_rows('An admin switches it off for him', 1,
-  $q$select set_ex_works(false, null, '00000000-0000-0000-0000-0000000000a2')$q$);
+  $q$select set_ex_works((select mh from k), false, '00000000-0000-0000-0000-0000000000a2')$q$);
 select pg_temp.as_owner();
 select pg_temp.expect_value('Recorded as done by an admin', 'by admin',
-  $q$select 'by admin' from seller_ex_works_versions where seller_id = '00000000-0000-0000-0000-0000000000a2' and by_admin and not is_on$q$);
+  $q$select 'by admin' from seller_ex_works_states where seller_id = '00000000-0000-0000-0000-0000000000a2' and by_admin and not is_on$q$);
 
-select pg_temp.expect_refused('Not even the database owner can change a saved setting', $q$update seller_ex_works_versions set is_on = true$q$);
-select pg_temp.expect_refused('Not even the database owner can delete one', $q$delete from seller_ex_works_versions$q$);
+select pg_temp.expect_refused('Not even the database owner can change a saved switch', $q$update seller_ex_works_states set is_on = true$q$);
+select pg_temp.expect_refused('...or delete one', $q$delete from seller_ex_works_states$q$);
+select pg_temp.expect_refused('...or change a plant city', $q$update seller_plant_cities set plant_region_id = (select mh from k)$q$);
+select pg_temp.expect_refused('...or delete one', $q$delete from seller_plant_cities$q$);
