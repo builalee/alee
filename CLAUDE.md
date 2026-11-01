@@ -155,6 +155,16 @@ final rate = base rate + grade premium + size difference + loading + area differ
 
 **Discount is shown to the buyer as a separate line beneath the rate**, e.g. `₹40,300 — less ₹500/tonne`. All other components are combined: the buyer sees only his final figure, never the base, the grade premium or the individual differences.
 
+### Area rate and ex-works rate
+- **Area rate:** the formula above, labelled **"[area] rate"**, e.g. "Satara rate". Never "delivered to".
+- **Ex-works rate:** `basic + grade premium + size difference + loading`, with **no area difference**, labelled **"Ex-[plant city]"**. Grade premium, size difference, loading and discount are those at the plant city, so the figure is the same for every buyer. The plant city defaults to his profile location; he can change it.
+  - **Off by default.** Each manufacturer, distributor and wholesaler can switch it on with a clearly shown setting. Why: a seller who prices higher in an area he hasn't set up would otherwise have buyers there see his lower ex-works figure.
+  - **When on,** shown to buyers in any area, served or not; in a served area beside the area rate. **Never in a Type A distributor area.**
+  - **Retailers:** paid retailers can switch it on, but it shows only inside their paid reach. Free retailers don't have it.
+- **Rounding:** components stay exact; the figure is converted to the display unit and rounded **once, at the end, to the nearest paisa**. Whole figures hide ".00".
+- A percentage discount is that percentage of the figure it sits under (area rate or ex-works).
+- The buyer's answer never contains the basic rate or any individual difference. Only the seller (and admins) get the breakdown. See docs/decisions.md 12.
+
 ### Precedence
 0. **Factory (a brand owner's own rate only)** — `resolve_brand_factory` finds the factory serving the buyer's area for that brand and family. If none does, or the factory has left, the brand is not offered there from the owner.
 1. **Territory allocation** — checked first for every seller shown, with `territory_effect` (built on `resolve_territory`), **per brand**. An allocation counts only once the distributor has accepted it, and the closest allocated area to the buyer wins (Karad taluka beats Satara district). Two types, chosen by the manufacturer:
@@ -162,9 +172,11 @@ final rate = base rate + grade premium + size difference + loading + area differ
    - **Type B, manufacturer sets the price (`manufacturer_prices`):** the buyer sees the manufacturer's own rate, worked out as normal below, tagged "Authorised distributor for [area]: [distributor]". The distributor does not publish that brand's rate there. Enquiries from that area go to the distributor.
 
    Territory affects only the brand owner's factories and his appointed distributor. Type B hides only that distributor's rate **for that brand** in that area; his other brands are unaffected. Other sellers of the brand keep showing their own rates. No allocation in effect: continue below.
-2. **Explicit exclusion** — the seller has marked this area as not served.
-3. **Area resolution** — most specific first: city → taluka → district → state. First match wins.
-4. **No match** — the seller does not serve this buyer.
+2. **Reach (retailers only)** — inside his reach: continue. Outside, but an approved outside buyer: his own-area (profile taluka) rate, labelled "Karad rate. Delivery to Pune: ask seller." Outside and not approved: "shares rates with buyers in [taluka]", no figure and no ex-works.
+3. **Not quoting, no publish yet, grade or size not offered** — no rate.
+4. **Explicit exclusion** — the seller has marked this area as not served.
+5. **Area resolution** — most specific first: city → taluka → district → state → everywhere. First match wins.
+6. **No match** — "Doesn't currently supply [area]": the buyer sees the profile, no area rate, and can still enquire; plus ex-works if switched on. **Never guess an area rate.**
 
 ### Critical correctness rules
 - **Zero is a real value, not absence.** A difference of ₹0 means "same as base". It must never fall through to a less specific level. Test this explicitly.
@@ -243,7 +255,7 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 
 ## 12. Access and privacy
 
-- A seller's profile is **public or private**, his choice. Public: subscribers see rates immediately. Private: he approves each subscription request.
+- A seller's profile is **public or private**, his choice. **Public:** any logged-in user sees his rates for his own area (plus ex-works where on) without subscribing; subscribing adds the morning feed and push alerts. Visitors who aren't logged in see the profile and "Log in to see rates". **Private:** he approves each subscription request before any rate is shown. Retailers' rates still follow their reach.
 - A seller can **remove or block** any subscriber.
 - **Territory allocation:**
   - **The manufacturer** sees **coverage only** for his own allocations: which distributor covers which area, for which family, and of which type. Never a distributor's rates or margin, by any route.
@@ -252,7 +264,7 @@ These live in one shared location each, and are used everywhere. Never reimpleme
   - **Who acts:** only the manufacturer offers or changes an offer. Only the distributor accepts or declines. Either side can end it. Admins can do any, recorded as admin.
 - Sellers see subscriber name and city.
 - Enquiries: buyer identity is optional. If hidden, the seller sees area, buyer tier and activity level. A seller's quote is visible only to that buyer — never to other sellers.
-- Contact details and rates are hidden on a public profile until subscribed.
+- Contact details are hidden on a public profile until subscribed. *(Rates no longer are: see above, and docs/decisions.md 12.3.)*
 - **Free retailers' reach:** buyers outside his reach see his profile but no rate ("[name] shares rates with buyers in [taluka]") until he approves their rate request. An approved outside buyer sees his own-area rate, labelled. Enforced by the rate engine and the database, never only on screen.
 - **The client book** is private to the retailer. Its customers, notes, tags (including payment tags) and activity never leave his account.
 
@@ -316,6 +328,8 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 - **Size difference** — the premium or discount for a particular size relative to base.
 - **Loading** — a handling charge added to the rate, in the seller's unit for that product family (per tonne or per kg).
 - **Trade discount** — an upfront discount, flat per the seller's unit for that product family (tonne or kg) or a percentage, shown on the invoice.
+- **Area rate** — the buyer's final rate for his area, labelled "[area] rate" (e.g. "Satara rate"). Never "delivered to".
+- **Ex-works rate** — basic + grade premium + size difference + loading, with no area difference, labelled "Ex-[plant city]". Off by default; the seller switches it on.
 - **Taluka** — the administrative level between district and city; the level freight is typically priced at.
 - **Market close** — the seller's daily closing time; after it, his last rate shows tagged "market closed".
 - **Reach** — where a seller's rates can be seen. A free retailer's reach is his own taluka; paid plans extend it. Other roles are not reach-limited.
@@ -458,7 +472,7 @@ Each engine is built once, tested thoroughly, and used everywhere. Screens never
 
 | Engine | Job |
 |---|---|
-| **Rate** | Returns a buyer's final rate from seller, **brand**, product, size and location. Applies factory coverage, territory, exclusions, area resolution, charts and discount. |
+| **Rate** | Returns a buyer's final rate from seller, **brand**, product, size and location. Applies factory coverage, territory, reach, exclusions, area resolution, charts and discount; adds ex-works where switched on. Runs in the database: the buyer's answer holds final figures only; the seller's answer holds every component. |
 | **Access** | Decides who can see and do what: subscription, public/private, approval, blocking, territory. |
 | **Notification** | On publish: finds recipients, respects alert settings, sends **one** message per publish event however many products changed, queues and retries. Publishing must return immediately without waiting for sends. Per-buyer delivery records are deleted after 90 days (the one exception to "never delete"). |
 | **Market status** | Open or closed now, from the seller's close time in IST. |
@@ -501,7 +515,10 @@ Each engine is built once, tested thoroughly, and used everywhere. Screens never
 - Different charts in different areas of the same state
 - Discount as a flat amount and as a percentage
 - A historical rate rebuilds exactly after charts have since been changed
-- A buyer outside every configured area is not served
+- A buyer outside every configured area is not served: "Doesn't currently supply [area]", no area rate
+- Ex-works is off by default, shown once switched on, shown in an unserved area, and never shown in a Type A area
+- A paid retailer's ex-works shows inside his paid reach only; a free retailer never has ex-works
+- A buyer's answer never contains the basic rate or any individual difference
 
 ---
 

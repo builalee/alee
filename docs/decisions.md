@@ -44,11 +44,13 @@ The developers disappeared and no code survived. Many decisions below exist spec
 **Why:** A seller who moves all ten products at once must not send ten messages. That is how an app gets muted on its first day.
 
 ### 1.7 Public or private profiles, approval, and blocking
-**Decision:** Public: anyone who subscribes sees rates. Private: the seller approves each request. Either way, he can remove or block any subscriber.
+**Decision:** Public: ~~anyone who subscribes sees rates~~ any logged-in user sees rates for his own area; subscribing adds the feed and alerts. Private: the seller approves each request. Either way, he can remove or block any subscriber.
+*(Updated 2026-10-29, see 12.3.)*
 **Why:** A distributor will not publish where his manufacturer or a competitor can see his rates. Blocking also closes a specific gap: a manufacturer could register under another firm name and subscribe to his own distributor.
 
-### 1.8 Profiles are visible; rates and contact details are not
-**Decision:** Anyone can see a seller's store name, location, products, size differences and loading. Rates and phone number need a subscription.
+### 1.8 Profiles are visible; ~~rates and~~ contact details are not
+**Decision:** Anyone can see a seller's store name, location, products, size differences and loading. ~~Rates and phone number need a subscription.~~ The phone number needs a subscription.
+*(Updated 2026-10-29, see 12.3: a public seller's rates for the buyer's own area are shown to any logged-in user without subscribing. Visitors who aren't logged in see "Log in to see rates".)*
 **Why:** A buyer needs enough to decide whether to subscribe. Size differences and loading are public for now — this is to be revisited, since one subscribed rate plus the public differences reveals a seller's full product ladder.
 
 ### 1.9 Every account can buy and sell
@@ -188,6 +190,7 @@ Ratings, AI suggestions, market averages, open bidding, dashboards and similar f
 - grades not sold there.
 
 An area is a state, district, taluka or city, or **"everywhere"**, a level above every state for a seller who charges the same everywhere. "Everywhere" must be chosen explicitly. **No seller serves anywhere by default**: with no area settings, or with none covering a buyer's area, the buyer is not served.
+*(Updated 2026-10-29, see 12.1: "not served" means the buyer sees the profile with "Doesn't currently supply [area]" and no area rate, plus ex-works if switched on. It never means a guessed rate.)*
 **Why:** Serving by default would show a seller's rate in places he cannot deliver (3.3). "Everywhere" exists so a flat-rate seller does not have to list every state, but it must be his choice, never something that happens because a field was left blank.
 
 ### 2.20 Area settings are saved as versions, and are private
@@ -712,7 +715,66 @@ All limits are settings admins can change:
 
 ---
 
-## 12. Open questions
+## 12. What a buyer sees (2026-10-29)
+
+### 12.1 Unserved areas: say so, never guess
+**Decision (2026-10-29):** a buyer in an area a seller doesn't serve still sees his profile, with **"Doesn't currently supply [area]"** and no area rate. He can still send an enquiry.
+- **Never guess an area rate.** ALEE never borrows a figure from a nearby area, or from the state, to fill a gap the seller left.
+- **Ex-works:** if the seller has switched it on (12.2), the buyer sees the ex-works line even here.
+
+**Why:** a buyer who finds a seller should learn that he doesn't deliver here, rather than finding nothing and wondering whether the app is broken. An enquiry may still lead to business. But a guessed rate is a wrong rate, which is the worst failure (CLAUDE.md section 1).
+
+*(Updates 2.19: "the buyer is not served" now means the buyer sees this message, not that the seller is hidden.)*
+
+### 12.2 Ex-works rate, off by default
+**Decision (2026-10-29):**
+- **What it is:** the rate at the seller's plant or yard, before any area difference:
+  `ex-works = basic + grade premium + size difference + loading`
+  Labelled **"Ex-[plant city]"**, for example "Ex-Satara".
+- **Plant city:** defaults to the city on his profile; he can change it.
+- **Off by default.** A clearly shown setting lets each manufacturer, distributor and wholesaler switch it on for himself.
+- **Where it shows when on:** to buyers in **any** area, served or not.
+  - In a served area the buyer sees both lines, for example "Satara rate" and "Ex-Satara".
+  - In an unserved area he sees only the ex-works line (12.1).
+  - **Never in a Type A distributor area:** there the buyer is pointed to the distributor and sees no figure from the manufacturer at all.
+- **Retailers:**
+  - **Paid retailers** can switch it on, but it shows only to buyers **inside their paid reach**.
+  - **Free retailers** don't have it.
+  - A retailer whose plan lapses keeps the setting saved, but it stops applying (10.4).
+- **Wording:** never "delivered to". An area rate is simply **"[area] rate"**, for example "Satara rate".
+
+**Why it is off by default:** a seller who prices higher in an area he hasn't set up yet would otherwise have buyers there see his lower ex-works figure, and expect it. Switching it on must be his deliberate choice.
+
+**Why retailers are limited:** ex-works shown everywhere would carry a free retailer's figure past the reach his plan gives him (10.3).
+
+### 12.3 Public profiles show rates to any logged-in user
+**Decision (2026-10-29):**
+- **Logged in:** any logged-in user sees a **public** seller's rates for his own area, plus ex-works where it is on, **without subscribing**.
+- **Subscribing** adds the morning feed and push alerts.
+- **Not logged in:** a visitor sees the profile and **"Log in to see rates"**.
+- **Private profiles** still need the seller's approval before any rate is shown.
+- **Retailers' rates** still follow their reach (10.3).
+- **Contact details** (the phone number) are unchanged by this decision: they still need a subscription.
+
+**Why:** a buyer judges a seller by his rate. Making him subscribe first, just to see one figure, puts a step in the way of the very thing ALEE is for. Logging in still keeps rates away from anonymous scrapers (CLAUDE.md section 15).
+
+*(Replaces "rates hidden until subscribed", in 1.7, 1.8 and CLAUDE.md section 12.)*
+
+### 12.4 How the rate engine answers (proposed 2026-10-29)
+- **It runs inside the database.** A buyer only ever receives final figures. The basic rate and the individual differences never leave the database in a buyer's answer.
+- **Two answers:**
+  - **the buyer's answer:** the figures and their labels, the discount line, unit, open or closed, time and any tag or message;
+  - **the seller's answer:** every component, and where each came from, for the seller himself and admins.
+- **Ex-works is worked out at the plant city.** Grade premium, size difference, loading and discount are those that apply at the plant city. The ex-works figure is therefore the same for every buyer. If any of those settings is missing at the plant city, ex-works is not shown and the seller is told what is missing, exactly as for an area rate (2.24).
+- **Rounding:** every component is kept exact. The figure is converted to the display unit and rounded **once, at the end, to the nearest paisa** (half a paisa rounds up). Whole figures are shown without ".00".
+- **Discount:**
+  - a flat discount is per the seller's unit, converted like the rate;
+  - a percentage discount is that percentage of the figure it sits under, the area rate or the ex-works rate.
+- **Outside reach:** the answer for a buyer beyond a retailer's reach is a distinct status, "reach limited", so the weekly "What you're missing" message (11.2) can count it. The engine itself only reads; it records nothing.
+
+---
+
+## 13. Open questions
 
 | Question | Notes |
 |---|---|
@@ -736,4 +798,5 @@ All limits are settings admins can change:
 | ~~A served city inside an excluded district~~ | **Settled 2026-10-17, see 2.21:** the more specific area wins, so the city is served. The setup screen shows it plainly (2.23). |
 | ~~Grade size chart vs family size chart across levels~~ | **Settled 2026-10-17, see 2.21 and 2.22:** the closer area wins; at the same area the grade's chart is looked at first. In TMT a better grade is normally a premium on the shared size difference, so a grade's own chart is the exception. |
 | ~~No loading chart anywhere for a buyer's area~~ | **Settled 2026-10-17, see 2.24:** missing loading is flagged, never zero. A seller who charges no loading says so with one tap. |
+| A retailer whose location has no taluka (proposed 2026-10-29) | A city can sit directly under a district. For such a free retailer, "his own taluka" is taken as his own city, the narrower choice. Confirm, or say what it should be. |
 | Limits on chart figures (proposed 2026-10-17) | A flat discount cannot be negative. Loading and size figures may be any sign. Confirm whether loading should also be barred from going negative. |
