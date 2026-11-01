@@ -15,7 +15,7 @@ export default async function ClosingPage() {
 
   return (
     <Screen title={text.seller.stepClosing} back="/seller">
-      <ActionForm action={saveClosingTime} submit={text.closing.accept}>
+      <ActionForm action={saveClosingTime} submit={text.closing.accept} startSaved={Boolean(profile.market_close_time)}>
         <Field label={text.closing.label} htmlFor="closeTime">
           <input id="closeTime" name="closeTime" type="time" required className={inputStyle}
             defaultValue={toTimeInput(profile.market_close_time) || SUGGESTED_CLOSE} />

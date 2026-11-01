@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Card, Screen } from "@/components/ui";
-import { getBrandLines, getFamily, getMissing, getOffering, getProfile, requireAccount } from "@/lib/api/queries";
+import { getBrandLines, getFamily, getMissing, getOffering, getProfile, isManufacturer, requireAccount } from "@/lib/api/queries";
 import { text } from "@/lib/text";
 
 function Step({ href, label, done }: { href: string; label: string; done: boolean }) {
@@ -43,7 +43,7 @@ export default async function SellerPage() {
         <Step href="/seller/brand" label={text.seller.stepBrand} done={lines.length > 0} />
         <Step href="/seller/closing" label={text.seller.stepClosing} done={Boolean(profile.market_close_time)} />
         <Link href="/seller/distributors" className="border-t border-current/15 pt-3 font-medium underline">
-          {text.seller.stepDistributors}
+          {isManufacturer(me) ? text.seller.stepDistributors : text.seller.stepOffers}
         </Link>
       </Card>
       {checks.map(({ line, offering, missing }) => (

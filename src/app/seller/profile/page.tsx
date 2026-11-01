@@ -10,7 +10,7 @@ export default async function ProfilePage() {
 
   return (
     <Screen title={text.seller.stepProfile} back="/seller">
-      <ActionForm action={saveProfile} submit={text.common.save}>
+      <ActionForm action={saveProfile} submit={text.common.save} startSaved={Boolean(profile)}>
         <Field label={text.profile.businessName} htmlFor="storeName">
           <input id="storeName" name="storeName" required className={inputStyle}
             defaultValue={profile?.store_name ?? me.account?.firm_name ?? ""} />

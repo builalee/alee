@@ -120,7 +120,7 @@ export async function saveProducts(_state: ActionResult, form: FormData): Promis
 
 /**
  * Grade premium and loading are one figure each for the demo (decision 16.6),
- * but they are saved on every district he fills in, never on an "everywhere"
+ * but they are saved on every district he adds, never on an "everywhere"
  * row: a district he leaves out must stay "not set up", never priced.
  */
 export async function saveRates(_state: ActionResult, form: FormData): Promise<ActionResult> {
@@ -150,7 +150,8 @@ export async function saveRates(_state: ActionResult, form: FormData): Promise<A
     if (!key.startsWith("area_")) continue;
     const amount = readAmount(value);
     if (amount === "invalid") return failed(text.common.enterNumber);
-    if (amount !== "empty") areas.push({ region_id: key.slice("area_".length), area_difference: amount });
+    if (amount === "empty") return failed(text.rates.needAreaFigure);
+    areas.push({ region_id: key.slice("area_".length), area_difference: amount });
   }
   if (areas.length === 0) return failed(text.rates.needOneArea);
 

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { Card, Field, inputStyle, Screen } from "@/components/ui";
-import { getBrandChoices, getBrandLines, getFamily, getProfile, requireAccount } from "@/lib/api/queries";
+import { getBrandChoices, getBrandLines, getFamily, getProfile, isManufacturer, requireAccount } from "@/lib/api/queries";
 import { addBrand, claimBrand, requestBrand } from "@/lib/api/seller";
 import { text } from "@/lib/text";
 
@@ -28,7 +28,7 @@ export default async function BrandPage() {
               <Link href={`/seller/products?brand=${line.id}`} className="underline">{text.brand.setUp}</Link>
               {line.isOwner && <p className="text-sm">{text.brand.owner}</p>}
               {line.isClaimed && <p className="text-sm">{text.brand.claimed}</p>}
-              {!line.isRegular && !line.isOwner && !line.isClaimed && (
+              {isManufacturer(me) && !line.isRegular && !line.hasOwner && !line.isClaimed && (
                 <ActionForm action={claimBrand} secondary submit={text.brand.claim}>
                   <input type="hidden" name="brandId" value={line.id} />
                 </ActionForm>

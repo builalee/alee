@@ -19,7 +19,8 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
 
   return (
     <Screen title={`${line.name}: ${text.seller.stepProducts}`} back="/seller">
-      <ActionForm action={saveProducts} submit={text.common.save}>
+      <p>{text.products.intro}</p>
+      <ActionForm action={saveProducts} submit={text.common.save} startSaved={offering.isSetUp}>
         <input type="hidden" name="brandId" value={line.id} />
         {offering.hasSizeChart ? (
           <p>{text.products.unitFixed} {text.products[offering.unit]}</p>
@@ -29,10 +30,11 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
               <option value="tonne">{text.products.tonne}</option>
               <option value="kg">{text.products.kg}</option>
             </select>
+            <p className="text-sm">{text.products.unitNote}</p>
           </Field>
         )}
-        <fieldset className="flex flex-col gap-2">
-          <legend className="font-medium">{text.products.grades}</legend>
+        <fieldset className="grid grid-cols-2 gap-2">
+          <legend className="mb-2 font-medium">{text.products.grades}</legend>
           {offering.grades.map((g) => (
             <label key={g.id} className="flex items-center gap-2">
               <input type="checkbox" name="grade" value={g.id} defaultChecked={ticked(g.selected)} className="size-5" />
@@ -40,8 +42,8 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
             </label>
           ))}
         </fieldset>
-        <fieldset className="flex flex-col gap-2">
-          <legend className="font-medium">{text.products.sizes}</legend>
+        <fieldset className="grid grid-cols-3 gap-2">
+          <legend className="mb-2 font-medium">{text.products.sizes}</legend>
           {offering.sizes.map((s) => (
             <label key={s.id} className="flex items-center gap-2">
               <input type="checkbox" name="size" value={s.id} defaultChecked={ticked(s.selected)} className="size-5" />
@@ -49,6 +51,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
             </label>
           ))}
         </fieldset>
+        <p className="text-sm">{text.products.sizeNote}</p>
       </ActionForm>
     </Screen>
   );

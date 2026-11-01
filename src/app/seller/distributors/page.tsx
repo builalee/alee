@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { ActionForm } from "@/components/action-form";
 import { Card, DistrictSelect, Field, inputStyle, Screen } from "@/components/ui";
-import { getDistricts, getProfile, getTerritory, requireAccount } from "@/lib/api/queries";
+import { getDistricts, getProfile, getTerritory, isManufacturer, requireAccount } from "@/lib/api/queries";
 import { offerTerritory, respondToTerritory } from "@/lib/api/territory";
 import { text } from "@/lib/text";
 
@@ -22,29 +22,32 @@ export default async function DistributorsPage() {
   const profile = await getProfile(me.id);
   if (!profile) redirect("/seller");
   const [territory, districts] = await Promise.all([getTerritory(me.id), getDistricts()]);
+  const appoints = isManufacturer(me) || territory.ownedBrands.length > 0;
 
   return (
-    <Screen title={text.seller.stepDistributors} back="/seller">
-      <Card>
-        <h2 className="font-semibold">{text.territory.toYou}</h2>
-        {territory.toMe.length === 0 && <p>{text.common.none}</p>}
-        {territory.toMe.map((a) => (
-          <div key={a.id} className="flex flex-col gap-2 border-t border-current/15 pt-3">
-            <p>{a.manufacturer}: {a.area}</p>
-            <p className="text-sm">{typeLabel(a.type)} · {text.territory.status[a.status]}</p>
-            {a.status === "offered" ? (
-              <div className="grid grid-cols-2 gap-2">
-                <Move id={a.id} move="accept" label={text.territory.accept} />
-                <Move id={a.id} move="decline" label={text.territory.decline} />
-              </div>
-            ) : (
-              <Move id={a.id} move="end" label={text.territory.end} />
-            )}
-          </div>
-        ))}
-      </Card>
+    <Screen title={appoints ? text.seller.stepDistributors : text.seller.stepOffers} back="/seller">
+      {(!appoints || territory.toMe.length > 0) && (
+        <Card>
+          <h2 className="font-semibold">{text.territory.toYou}</h2>
+          {territory.toMe.length === 0 && <p>{text.territory.noOffers}</p>}
+          {territory.toMe.map((a) => (
+            <div key={a.id} className="flex flex-col gap-2 border-t border-current/15 pt-3">
+              <p>{a.manufacturer}: {a.area}</p>
+              <p className="text-sm">{typeLabel(a.type)} · {text.territory.status[a.status]}</p>
+              {a.status === "offered" ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <Move id={a.id} move="accept" label={text.territory.accept} />
+                  <Move id={a.id} move="decline" label={text.territory.decline} />
+                </div>
+              ) : (
+                <Move id={a.id} move="end" label={text.territory.end} />
+              )}
+            </div>
+          ))}
+        </Card>
+      )}
 
-      {territory.ownedBrands.length === 0 ? (
+      {!appoints ? null : territory.ownedBrands.length === 0 ? (
         <p>{text.territory.needOwned}</p>
       ) : (
         <>

@@ -42,6 +42,10 @@ export async function requireAccount() {
   return me;
 }
 
+/** Manufacturers, including one still waiting for ALEE, see the owner's screens. */
+export const isManufacturer = (me: { role: Role; pendingRole: Role | null }) =>
+  me.role === "manufacturer" || me.pendingRole === "manufacturer";
+
 export async function requireAdmin() {
   const me = await getMe();
   if (!me) redirect("/login");
@@ -145,6 +149,7 @@ export async function getBrandLines(sellerId: string, familyId: string) {
       name: (names[i].data as string) ?? b?.name ?? "",
       isRegular: Boolean(b?.is_regular),
       isOwner: b?.owner_id === sellerId,
+      hasOwner: Boolean(b?.owner_id),
       isClaimed: Boolean(claims?.some((c) => c.brand_id === id)),
     };
   });
