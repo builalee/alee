@@ -139,6 +139,7 @@ Stop and explain the risk instead.
 - `.env.local` must point at alee-dev during development.
 - `.env.local` is never committed. Before any commit that adds a file containing secrets, run `git status` and confirm it is not listed.
 - Hosting: Vercel. Stack: Next.js (App Router, `src/`), TypeScript, Tailwind, Supabase Postgres, Capacitor: Android app at launch (Phase 1), iPhone app in Phase 1.1. FCM for push (APNs with the iPhone app).
+- **The phone app loads the live website** (docs/decisions.md 15.1), so fixes reach everyone in minutes. Capacitor's docs call this "not intended for production"; it is a known, accepted trade-off. Safeguards: an offline saved-rates screen built into the app, real phone features from the first version, and the phone app tested on every release.
 
 ---
 
@@ -462,7 +463,9 @@ The database parts already built for later phases stay as they are. **Charging i
 - **Admin** — set up sellers; approve brands, buyer-added cities and higher roles; switch plans on and off; manage regions, templates and the settings below. A screen showing who published today, and the % of sellers who published today.
 - **ALEE Assist** — below.
 - **Nudges and "What you're missing" messages** — below.
-- **Android app.**
+- **Android app** — loads the live website (15.1), with from the first version: push alerts, WhatsApp share, and a **saved-rates screen** that works offline or when the site is down. Tested on a real phone on every release.
+- **Emergency switches** — hide a rate instantly, pause new sign-ups, show a maintenance banner. Admin only; every use recorded (who, when, why); the switches are admin data, not hardcoded. Hiding a rate never deletes it.
+- **Pre-launch checklist** — mandatory: every item in `docs/launch-checklist.md` ticked before launch.
 - **Operations** — live database, daily backups with a **tested** restore, error and uptime alerts, saved checks that run automatically on every change.
 
 #### Reach for every seller, and the free retailer package
@@ -641,3 +644,4 @@ Read the relevant document before building a new area of the product:
 - **`docs/database.md`**: every table, what it holds in plain words, who can see and change it, and how the tables connect.
 - **`README.md`**: setting up on a new laptop, how the folders are organised, and how to run the checks.
 - **`tests/database/`**: the saved database checks, run with `npm run check:db`.
+- **`docs/launch-checklist.md`**: what must be ticked, and how to check it, before launch.

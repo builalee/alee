@@ -786,6 +786,7 @@ These appear in CLAUDE.md but have no tables yet. Phase 1 unless marked; phases 
 
 - screens for role requests, plans, outside-buyer requests, ex-works (with its preview) and factories (the database parts are built)
 - the client book itself (its limit, `client_book_limit`, is built), the gap nudge, and "What you're missing" (built switched off; an admin switches it on per district)
+- emergency switches (hide a rate, pause sign-ups, maintenance banner), with a record of every use
 - the WhatsApp rate card, the seller's weekly chart, alerts that say what changed, the admin "who published today" screen, and language per state
 - logging admin reads of seller data (decision 6.5), with the API layer
 - client book, follow-ups and activity log; nudges and "What you're missing"

@@ -506,6 +506,7 @@ Size and piece weights cannot be missing: a size cannot be switched on until its
 **Why:** The owner cannot read code fluently. TypeScript catches a whole class of errors — text where a price should be — before anything runs.
 
 ### 5.4 Web app wrapped for Android and iOS
+*(Updated 2026-11-01, see 15.1: the app loads the live website, with an offline saved-rates screen.)*
 **Why:** Profiles must open from a WhatsApp link. iOS is required for manufacturers, and one codebase serves web, Android and iOS.
 *(Updated 2026-10-29, see 9.1: the Android app launches in Phase 1; the iPhone app follows in Phase 1.1.)*
 
@@ -925,4 +926,41 @@ The same rules for every role:
 ### 14.9 Recorded for later, not built
 - **AI setup helper (Phase 2):** reads a seller's existing WhatsApp rate message and fills his setup for him to confirm. AI never publishes prices without a person confirming.
 - **ALEE Assist written rules** must be decided before Assist goes live (see the open questions).
+
+---
+
+## 15. Phone app, emergency switches and the launch checklist (2026-11-01)
+
+### 15.1 The phone app loads the live website (Option 1)
+**Decision (2026-11-01):** the Android app (Phase 1), and the iPhone app (Phase 1.1), load the live ALEE website, so a fix reaches everyone within minutes, without waiting for a store update.
+
+**Safeguards:**
+- **Offline:** a **saved-rates screen** is built into the app itself, for when the phone is offline or the site is down.
+- **Real phone features from the first version:** push alerts, WhatsApp share, saved rates.
+- **Every release:** the phone app is tested on a real phone.
+
+**Known, accepted trade-off:** Capacitor's own documentation says loading an external URL "is not intended for use in production" (capacitorjs.com/docs/config, `server.url`, checked 2026-11-01). We accept this deliberately. The safeguards above, and testing on every release, are how we live with it.
+
+**Why:** in a daily-rates product, a wrong screen must be fixable the same morning. A store review would take days.
+
+*(Adds to 5.4.)*
+
+### 15.2 Emergency switches
+**Decision (2026-11-01):** Phase 1 includes three emergency switches:
+- **hide a rate instantly;**
+- **pause new sign-ups;**
+- **show a maintenance banner.**
+
+**Rules:**
+- **Admin only.**
+- **Every use is recorded:** who, when, why.
+- **The switches are admin data, not hardcoded.**
+- **Hiding a rate never deletes it.** The publish stays in history, marked hidden (4.2).
+
+**Why:** if a wrong rate goes out at 9 am, it must disappear from every buyer's screen at once, while the cause is found.
+
+### 15.3 The pre-launch checklist is mandatory
+**Decision (2026-11-01):** ALEE does not launch until every item in `docs/launch-checklist.md` is ticked, each with how it was checked. The list holds no prices or amounts.
+
+**Why:** the earlier attempt failed after launch, not before. These are the things that decide whether a bad morning is a five-minute fix or a lost week.
 
