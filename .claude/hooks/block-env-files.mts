@@ -30,4 +30,16 @@ try {
 
 if (typeof command !== "string") refuse();
 if (/\.env\.local/i.test(command)) refuse();
+
+// A command touching ALEE's safety files (this hook, or the settings that
+// switch it on) must ask the owner first.
+if (/\.claude[\\/]+(hooks|settings)/i.test(command)) {
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "ask",
+      permissionDecisionReason: "This touches ALEE's safety files. Ask the owner.",
+    },
+  }));
+}
 process.exit(0);
