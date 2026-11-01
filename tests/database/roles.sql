@@ -59,7 +59,8 @@ select pg_temp.expect_rows('Another person sees none of his requests', 0,
 select pg_temp.expect_rows('A retailer asks to become a wholesaler', 1, $q$select request_role('wholesaler')$q$);
 
 select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
-select pg_temp.expect_rows('The admin sees both requests', 2, $q$select * from role_requests$q$);
+select pg_temp.expect_rows('The admin sees both requests', 2,
+  $q$select * from role_requests where account_id in ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000a2')$q$);
 select pg_temp.expect_rows('The admin approves the distributor', 1,
   $q$select decide_role_request(id, true) from role_requests where account_id = '00000000-0000-0000-0000-0000000000a1'$q$);
 select pg_temp.expect_rows('The admin refuses the wholesaler', 1,
