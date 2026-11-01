@@ -102,6 +102,7 @@ export const text = {
   },
   brand: {
     add: "Add a brand from the ALEE list",
+    addNote: "This adds the brand to your own list of what you sell. Nothing is sent to its manufacturer.",
     addButton: "Add brand",
     request: "Brand not on the list? Request it",
     requestName: "Brand name",

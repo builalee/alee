@@ -44,6 +44,7 @@ export default async function BrandPage() {
               <option value="" disabled>{text.common.choose}</option>
               {available.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
+            <p className="text-sm">{text.brand.addNote}</p>
           </Field>
         </ActionForm>
       </Card>
