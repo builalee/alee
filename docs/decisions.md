@@ -993,3 +993,16 @@ These limit the demo only. They change no Phase 1 rule.
 
 **Rule:** every call to Supabase stays on the server (Vercel), outside the user's connection. Browser code and the phone app never call a Supabase address. This makes CLAUDE.md rule 1 essential for ALEE to work in India at all, not only tidy design. Local testing on an affected connection needs its DNS changed, or a Vercel preview instead.
 
+### 16.6 Cuts agreed for the demo's setup screens
+**Decision (2026-11-01, by the owner).** These limit the screens only; the database still supports the full rules.
+- **One grade premium per grade and one loading figure** for all of Maharashtra. Area difference stays per district.
+- **No exclusions** on the areas screen.
+- **At most one appointment of each type,** with no change-of-type screen.
+- **Plain admin lists:** approve or refuse only.
+
+**How it was built (proposed 2026-11-01):**
+- **The one figure is saved on every district he fills in,** never on an "everywhere" row. An "everywhere" row would cover districts he never priced, and they would show "Rate not available" instead of "Price on request".
+- **The basic rate is entered at his first publish.** It exists only as part of a publish, so the setup screens don't ask for it.
+- **The unit is chosen once,** before the template is copied. Converting saved charts when a unit changes isn't built (2.8).
+- **The plant city is a district,** and is his profile location, since no cities are seeded.
+
