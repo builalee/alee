@@ -46,6 +46,7 @@ select id, 'Check 40mm', 80, 9.865, 12, 'check', false, false from segments wher
 
 -- Test sellers sell Regular in each family they deal in.
 select pg_temp.sell_regular();
+select pg_temp.reach_everywhere();
 
 create temp table ids as
 select (select id from segments where name = 'TMT Bars') as tmt,

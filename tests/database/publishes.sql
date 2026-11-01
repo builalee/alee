@@ -55,6 +55,7 @@ insert into segments (name, sort_order) values ('Check Pipes', 999);
 
 -- Test sellers sell Regular in each family they deal in.
 select pg_temp.sell_regular();
+select pg_temp.reach_everywhere();
 
 create temp table k as
 select (select id from segments where name = 'TMT Bars') as tmt,
@@ -117,6 +118,7 @@ select '00000000-0000-0000-0000-0000000000f6', 'Farid Hardware', id, true
 insert into seller_segments (seller_id, segment_id)
 values ('00000000-0000-0000-0000-0000000000f6', (select tmt from k));
 select pg_temp.sell_regular();
+select pg_temp.reach_everywhere();
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000f6');
 select save_area_settings((select tmt from k), '[{"everywhere": true, "area_difference": 0}]', null, (select id from brands where is_regular));
 

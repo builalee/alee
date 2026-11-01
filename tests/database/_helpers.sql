@@ -169,3 +169,25 @@ begin
   perform set_config('role', 'none', true);
 end;
 $$;
+
+-- Gives every test seller (ids 00000000-0000-0000-0000-...) with a seller
+-- profile a reach plan covering every state, so checks about other things
+-- are not stopped by reach. Checks about reach itself do not call this.
+-- Runs with owner rights, whoever is acting.
+create function pg_temp.reach_everywhere()
+returns void language sql security definer as $$
+  insert into public.plans (name, kind, reach_level, extra_states)
+  values ('Check Wide Reach', 'reach', 'state', 9) on conflict (name) do nothing;
+  insert into public.seller_plans (seller_id, plan_id, starts_at, ends_at, switched_on_by)
+  select sp.account_id, (select p.id from public.plans p where p.name = 'Check Wide Reach'),
+         now() - interval '1 day', now() + interval '1 year', sp.account_id
+    from public.seller_profiles sp
+   where sp.account_id::text like '00000000-0000-0000-0000-%'
+     and not exists (select 1 from public.seller_plans x where x.seller_id = sp.account_id);
+  insert into public.seller_plan_areas (seller_plan_id, region_id)
+  select x.id, r.id
+    from public.seller_plans x join public.plans p on p.id = x.plan_id and p.name = 'Check Wide Reach',
+         public.regions r
+   where r.level = 'state'
+  on conflict do nothing;
+$$;

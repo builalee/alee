@@ -1,7 +1,8 @@
 -- ============================================================
 -- Checks: outside-buyer rate requests (rate_requests, request_rates,
 -- decide_rate_request, end_rate_request, is_approved_outside_buyer).
--- Covers: only a buyer outside a retailer's reach can ask; one open request
+-- Covers: only a buyer outside a seller's reach can ask (every role has a
+-- reach); one open request
 -- at a time; only the seller (or an admin) decides; the outside-buyer limit
 -- comes from his plan; either side can end an approval; the buyer can
 -- withdraw a waiting request; each side sees only his own requests; moves
@@ -39,7 +40,7 @@ select a.id, x.store, a.region_id, true
 select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
 select decide_role_request(id, true) from role_requests where status = 'requested';
 -- The free plan allows one outside buyer, for these checks.
-update plans set outside_buyer_limit = 1 where is_free;
+select change_setting('free_outside_buyer_limit', '1');
 
 -- Structure ----------------------------------------------------------------------
 
@@ -52,9 +53,9 @@ select pg_temp.expect_value('Row Level Security is on', 'true',
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000b3');
 select pg_temp.expect_message('A buyer inside his taluka does not need to ask', 'You can already see this seller''s rates for your area.',
   $q$select request_rates('00000000-0000-0000-0000-0000000000a1')$q$);
-select pg_temp.as_user('00000000-0000-0000-0000-0000000000b1');
-select pg_temp.expect_message('A wholesaler is not reach-limited, so there is nothing to ask', 'You can already see this seller''s rates for your area.',
+select pg_temp.expect_message('A buyer inside a wholesaler''s district does not need to ask either', 'You can already see this seller''s rates for your area.',
   $q$select request_rates('00000000-0000-0000-0000-0000000000a2')$q$);
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000b1');
 select pg_temp.expect_rows('A Pune buyer asks Tara for her rates', 1, $q$select request_rates('00000000-0000-0000-0000-0000000000a1')$q$);
 select pg_temp.expect_message('...only once while it is open', 'You have already asked this seller for his rates.',
   $q$select request_rates('00000000-0000-0000-0000-0000000000a1')$q$);
@@ -103,3 +104,12 @@ select pg_temp.expect_value('Every request is kept, with its outcome', 'P ended 
 select pg_temp.expect_refused('An ended approval cannot be reopened, even by the database owner',
   $q$update rate_requests set status = 'approved' where status = 'ended'$q$);
 select pg_temp.expect_refused('Not even the database owner can delete a request', $q$delete from rate_requests$q$);
+
+-- Account deletion is never blocked ---------------------------------------------------
+
+select pg_temp.expect_rows('A buyer who withdrew a request can still delete his account', 1,
+  $q$delete from auth.users where id = '00000000-0000-0000-0000-0000000000b2'$q$);
+select pg_temp.expect_value('...and his requests go with it', '0',
+  $q$select count(*)::text from rate_requests where buyer_id = '00000000-0000-0000-0000-0000000000b2'$q$);
+select pg_temp.expect_rows('The admin who decided a role can delete his login too', 1,
+  $q$delete from auth.users where id = '00000000-0000-0000-0000-0000000000c3'$q$);

@@ -34,6 +34,7 @@ select '00000000-0000-0000-0000-0000000000a1', b.id, s.id from brands b, segment
 
 -- Test sellers sell Regular in each family they deal in.
 select pg_temp.sell_regular();
+select pg_temp.reach_everywhere();
 
 create temp table k as
 select (select id from segments where name = 'TMT Bars') as tmt,

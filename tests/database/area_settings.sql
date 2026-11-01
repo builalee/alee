@@ -103,6 +103,7 @@ select save_chart_version((select id from charts where name = 'B sizes'), 'kg',
 select pg_temp.as_owner();
 -- Test sellers sell Regular in each family they deal in.
 select pg_temp.sell_regular();
+select pg_temp.reach_everywhere();
 
 create temp table k as
 select (select id from segments where name = 'TMT Bars') as tmt,
