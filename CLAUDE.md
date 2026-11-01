@@ -156,14 +156,18 @@ final rate = base rate + grade premium + size difference + loading + area differ
 **Discount is shown to the buyer as a separate line beneath the rate**, e.g. `₹40,300 — less ₹500/tonne`. All other components are combined: the buyer sees only his final figure, never the base, the grade premium or the individual differences.
 
 ### Area rate and ex-works rate
-- **Area rate:** the formula above, labelled **"[area] rate"**, e.g. "Satara rate". Never "delivered to".
-- **Ex-works rate:** `basic + grade premium + size difference + loading`, with **no area difference**, labelled **"Ex-[plant city]"**. Grade premium, size difference, loading and discount are those at the plant city, so the figure is the same for every buyer. The plant city defaults to his profile location; he can change it.
-  - **Off by default.** Each manufacturer, distributor and wholesaler can switch it on with a clearly shown setting. Why: a seller who prices higher in an area he hasn't set up would otherwise have buyers there see his lower ex-works figure.
-  - **When on,** shown to buyers in any area, served or not; in a served area beside the area rate. **Never in a Type A distributor area.**
-  - **Retailers:** paid retailers can switch it on, but it shows only inside their paid reach. Free retailers don't have it.
+- **Wording rule:** no freight or delivery wording anywhere in rate labels, screens, messages or documents. Never "freight extra", "delivered to", or "delivery to [area]: ask seller". **Labels are only "[area] rate" (e.g. "Karad rate") or "Ex-[plant city]" (e.g. "Ex-Pune").**
+- **Area rate:** the formula above, labelled "[area] rate".
+- **Ex-works rate:** `basic + grade premium + size difference + loading`, with **no area difference**, labelled "Ex-[plant city]". Grade premium, size difference, loading and discount are those at the plant city, so every buyer sees the same figure. The plant city defaults to his profile location; he can change it.
+  - **Off by default.** The seller switches it on **per state**, only within his reach. Before switching on he sees a preview of exactly which areas will see it (`ex_works_preview`).
+  - **What a buyer inside his reach sees:** an area he has set up: that area's rate only, **never ex-works beside it**. An area not set up, ex-works on in that state: "₹54,000 — Ex-Pune". Not set up, ex-works off: "Price on request — send enquiry". An area he excluded: "Doesn't currently supply [area]". Type A territory: pointed to the distributor.
+  - **Never outside his reach.**
+  - **A missing setting** for the buyer's area doesn't block the ex-works line, as long as the plant city's figures are complete.
+  - **Why:** ex-works must never undercut a seller's intended price in an area he hasn't set up, and showing it beside an area rate would let buyers work out his costs.
 - **Rounding:** components stay exact; the figure is converted to the display unit and rounded **once, at the end, to the nearest paisa**. Whole figures hide ".00".
 - A percentage discount is that percentage of the figure it sits under (area rate or ex-works).
-- The buyer's answer never contains the basic rate or any individual difference. Only the seller (and admins) get the breakdown. See docs/decisions.md 12.
+- The buyer's answer never contains the basic rate or any individual difference. Only the seller (and admins) get the breakdown. See docs/decisions.md 12 and 14.
+- **Past dates:** a past publish returns only what the seller published, exactly as published. ALEE never reconstructs who could see a rate on a past day, and never applies today's plan, territory or factory arrangements to a past date. Where there is no stored record for that day and view: "No data available for that day" (`rates_on_day`). Never recreate data that was never recorded.
 
 ### Precedence
 0. **Factory (a brand owner's own rate only)** — `resolve_brand_factory` finds the factory serving the buyer's area for that brand and family. If none does, or the factory has left, the brand is not offered there from the owner.
@@ -172,11 +176,11 @@ final rate = base rate + grade premium + size difference + loading + area differ
    - **Type B, manufacturer sets the price (`manufacturer_prices`):** the buyer sees the manufacturer's own rate, worked out as normal below, tagged "Authorised distributor for [area]: [distributor]". The distributor does not publish that brand's rate there. Enquiries from that area go to the distributor.
 
    Territory affects only the brand owner's factories and his appointed distributor. Type B hides only that distributor's rate **for that brand** in that area; his other brands are unaffected. Other sellers of the brand keep showing their own rates. No allocation in effect: continue below.
-2. **Reach (retailers only)** — inside his reach: continue. Outside, but an approved outside buyer: his own-area (profile taluka) rate, labelled "Karad rate. Delivery to Pune: ask seller." Outside and not approved: "shares rates with buyers in [taluka]", no figure and no ex-works.
+2. **Reach (every seller)** — inside his reach: continue. Outside, but an approved outside buyer: his own-area rate, labelled only "[area] rate" (e.g. "₹55,500 — Karad rate"). Outside and not approved: "[name] shares rates with buyers in [area]", no figure and no ex-works.
 3. **Not quoting, no publish yet, grade or size not offered** — no rate.
 4. **Explicit exclusion** — the seller has marked this area as not served.
 5. **Area resolution** — most specific first: city → taluka → district → state → everywhere. First match wins.
-6. **No match** — "Doesn't currently supply [area]": the buyer sees the profile, no area rate, and can still enquire; plus ex-works if switched on. **Never guess an area rate.**
+6. **Not set up** — no area of his setup covers the buyer's area: his ex-works rate if it is on in that state, otherwise "Price on request — send enquiry". An area he **excluded** (step 4) shows "Doesn't currently supply [area]". Either way the buyer sees the profile and can enquire. **Never guess an area rate.**
 
 ### Critical correctness rules
 - **Zero is a real value, not absence.** A difference of ₹0 means "same as base". It must never fall through to a less specific level. Test this explicitly.
@@ -247,15 +251,15 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 - **Money** — formatting and all arithmetic, including rounding rules.
 - **Rate resolution** — the single function in section 8. The publish confirmation screen, buyer feed, enquiries and orders must all call the same function. If two places calculate separately they will eventually disagree, and that destroys trust in the record.
 - **Permissions** — who can see and do what.
-- **User-facing text** — all strings in one file, to allow Marathi and Hindi later.
-- **Settings** — file size caps, enquiry expiry, free plan limits (taluka reach, customer limit, outside-buyer limit), nudge timings, the ALEE Assist minimum per product family, and similar values. Never hardcoded; admins change them. Plans are data too.
+- **User-facing text** — all strings in one file. Language per state: Marathi labels for Maharashtra first, starting with the daily screens; other states configured as ALEE expands; a user can switch language.
+- **Settings** — in the `settings` table: free reach per role, the free customer limit, the free outside-buyer limit; later also file size caps, enquiry expiry, nudge timings, the ALEE Assist minimum per product family, and similar values. Never hardcoded; admins change them. Plans are data too.
 - **Dates shown** as DD-MM-YYYY.
 
 ---
 
 ## 12. Access and privacy
 
-- A seller's profile is **public or private**, his choice. **Public:** any logged-in user sees his rates for his own area (plus ex-works where on) without subscribing; subscribing adds the morning feed and push alerts. Visitors who aren't logged in see the profile and "Log in to see rates". **Private:** he approves each subscription request before any rate is shown. Retailers' rates still follow their reach.
+- A seller's profile is **public or private**, his choice. **Public:** any logged-in user sees his rates for his own area (plus ex-works where on) without subscribing; subscribing adds the morning feed and push alerts. Visitors who aren't logged in see the profile and "Log in to see rates". **Private:** he approves each subscription request before any rate is shown. Every seller's rates follow his reach.
 - A seller can **remove or block** any subscriber.
 - **Territory allocation:**
   - **The manufacturer** sees **coverage only** for his own allocations: which distributor covers which area, for which family, and of which type. Never a distributor's rates or margin, by any route.
@@ -265,8 +269,8 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 - Sellers see subscriber name and city.
 - Enquiries: buyer identity is optional. If hidden, the seller sees area, buyer tier and activity level. A seller's quote is visible only to that buyer — never to other sellers.
 - Contact details are hidden on a public profile until subscribed. *(Rates no longer are: see above, and docs/decisions.md 12.3.)*
-- **Free retailers' reach:** buyers outside his reach see his profile but no rate ("[name] shares rates with buyers in [taluka]") until he approves their rate request. An approved outside buyer sees his own-area rate, labelled. Enforced by the rate engine and the database, never only on screen.
-- **The client book** is private to the retailer. Its customers, notes, tags (including payment tags) and activity never leave his account.
+- **Reach (every seller):** buyers outside his reach see his profile but no rate ("[name] shares rates with buyers in [area]") and can send an enquiry or ask for his rates. An approved outside buyer sees his own-area rate, labelled "[area] rate". Enforced by the rate engine and the database, never only on screen.
+- **The client book** is private to the seller. Its customers, notes, tags (including payment tags) and activity never leave his account.
 
 ---
 
@@ -329,12 +333,12 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 - **Loading** — a handling charge added to the rate, in the seller's unit for that product family (per tonne or per kg).
 - **Trade discount** — an upfront discount, flat per the seller's unit for that product family (tonne or kg) or a percentage, shown on the invoice.
 - **Area rate** — the buyer's final rate for his area, labelled "[area] rate" (e.g. "Satara rate"). Never "delivered to".
-- **Ex-works rate** — basic + grade premium + size difference + loading, with no area difference, labelled "Ex-[plant city]". Off by default; the seller switches it on.
-- **Taluka** — the administrative level between district and city; the level freight is typically priced at.
+- **Ex-works rate** — basic + grade premium + size difference + loading, with no area difference, labelled "Ex-[plant city]". Off by default; switched on per state; shown only in areas he hasn't set up.
+- **Taluka** — the administrative level between district and city; the level area prices are typically set at.
 - **Market close** — the seller's daily closing time; after it, his last rate shows tagged "market closed".
-- **Reach** — where a seller's rates can be seen. A free retailer's reach is his own taluka; paid plans extend it. Other roles are not reach-limited.
-- **Outside buyer** — a buyer beyond a retailer's reach whose rate request he approved; he sees the retailer's own-area rate, labelled.
-- **Client book** — a retailer's private list of his own customers (not necessarily on ALEE), with follow-ups and an activity log.
+- **Reach** — where a seller's rates can be seen. Free: a retailer's own taluka, a wholesaler's or distributor's own district, a manufacturer's own state. Paid reach plans extend it.
+- **Outside buyer** — a buyer beyond a seller's reach whose rate request the seller approved; he sees the seller's own-area rate, labelled "[area] rate".
+- **Client book** — a seller's private list of his own customers (not necessarily on ALEE), with follow-ups and an activity log.
 - **ALEE Assist** — for large enquiries, the buyer can ask ALEE to find the best deal; ALEE handles it only where both sides agreed.
 - **Territory allocation** — a manufacturer allocating an area, for a brand he owns in one product family, to a distributor, who must accept. Type A: the distributor sets and publishes the price there. Type B: the manufacturer's own rate is shown there, tagged with the authorised distributor.
 
@@ -355,38 +359,52 @@ The database parts already built for later phases stay as they are. **Charging i
 - **Territory allocation** — both types, including the "Authorised distributor for [area]: [distributor]" tag. A manufacturer offers an area, for a brand he owns in a product family, to a distributor, who accepts or declines; either side can end it.
 - **Seller's subscriber list** — who follows his rates (name and city).
 - **For buyers** — location, search (sellers by product, area or name), public profiles, subscribe with an alert preference per subscription, a morning feed of subscribed sellers' current rates for his area (history scoped to his area), push alerts.
-- **Enquiries to sellers** — direct to a seller, optional buyer identity, forward to other sellers without retyping, private quotes. Allowed after the seller's market has closed: marked "received after close", and the buyer is told the seller will respond when the market opens. No charge for enquiries in Phase 1.
-- **Small retailers publishing their own rates** — with the free retailer package and paid reach below.
+- **Enquiries to sellers** — direct to a seller, optional buyer identity, forward to other sellers without retyping (Phase 1), private quotes. Allowed after the seller's market has closed: marked "received after close", and the buyer is told the seller will respond when the market opens. No charge for enquiries in Phase 1.
+- **Small retailers publishing their own rates** — with the free retailer package below.
+- **Reach for every seller and the ex-works screens** — below.
+- **Outside-buyer approvals** and **factory and brand-owner screens** (multi-factory coverage, factory links).
 - **Client book with follow-ups** — below.
 - **Sharing to WhatsApp** — a rate, or a store profile, shared to WhatsApp in one tap.
-- **Admin** — set up sellers; approve brands, buyer-added cities and higher roles; switch plans on and off; manage regions, templates and the settings below.
+- **WhatsApp rate card** — every publish produces a ready-to-forward image plus a link, shared to WhatsApp in one tap.
+- **Seller's weekly chart** — Monday to Sunday, his own rates per segment, shareable to WhatsApp in one tap. Only his own data. An ALEE market-wide report from many sellers is not Phase 1.
+- **Alerts that say what changed** — e.g. "TMT Kolhapur +₹300", not just "rates updated".
+- **"Updated [time]"** — large, on every rate; rates from a previous day greyed out (`published_today`).
+- **Language per state** — Marathi for Maharashtra first, starting with the daily screens; a user can switch language (section 11).
+- **Admin** — set up sellers; approve brands, buyer-added cities and higher roles; switch plans on and off; manage regions, templates and the settings below. A screen showing who published today, and the % of sellers who published today.
 - **ALEE Assist** — below.
 - **Nudges and "What you're missing" messages** — below.
 - **Android app.**
 - **Operations** — live database, daily backups with a **tested** restore, error and uptime alerts, saved checks that run automatically on every change.
 
-#### Free retailer package and paid reach
+#### Reach for every seller, and the free retailer package
 - **Free:**
   - rates visible only to buyers in **his own taluka** (from his profile location);
-  - a client book up to the customer limit, with follow-ups;
+  - a client book up to the customer limit (20), with follow-ups;
   - his own store link, shareable and printable as a QR code;
   - following any number of suppliers, with their rates in his morning feed;
   - enquiries from buyers.
-- **Free plan area setup** is limited to his own taluka and places inside it. Trying to add any area beyond it shows "Upgrade to reach more areas" instead. **Enforced in the database, not only on screen.**
-- **Paid plans** extend reach to his whole district or state, and allow more customers. An admin switches a plan on after payment. Each plan is stored with start and end dates and history.
+- **Reach by role:**
+
+  | Role | Free reach | Paid reach |
+  |---|---|---|
+  | Retailer | his own taluka | district or state |
+  | Wholesaler, distributor | his own district | state, or more states |
+  | Manufacturer | his own state | each additional state |
+
+- **Area setup beyond reach** shows "Upgrade to reach more areas" instead, for every seller. **Enforced in the database** (`area_settings_within_reach`), not only on screen. "Everywhere" and exclusions are allowed.
+- **Paid reach plans** are switched on by an admin after payment, stored with start and end dates and history, and may name extra states.
 - **When a plan lapses**, reach and limits return to the free level.
   - Settings beyond his taluka stay saved but stop applying.
   - Customers above the limit stay, but no more can be added.
   - Nothing is deleted.
 - **The rate engine applies the reach limit**, so buyers outside it never see his rate unless he has approved them.
-- **Buyers outside a free retailer's reach** can find him and view his profile, but see no rate: "[name] shares rates with buyers in [taluka]." They cannot subscribe directly. They can:
+- **Buyers outside a seller's reach** can find him and view his profile, but see no rate: "[name] shares rates with buyers in [area]." They cannot subscribe directly. They can:
   - send him an **enquiry**, which he can quote or decline;
-  - **"Request rates"**: he approves or declines each request. An approved outside buyer receives his rates like a subscriber, but sees **his own-area rate, labelled**, e.g. "₹56,500 — Karad rate. Delivery to Pune: ask seller."
-- **Outside-buyer limit:** a free retailer can approve outside buyers up to the outside-buyer limit; beyond it he sees an upgrade prompt.
-- **Manufacturers, distributors and wholesalers are not reach-limited.**
-- **All limits are settings admins can change:**
-  - the taluka reach;
-  - the customer limit (starting at 30);
+  - **"Request rates"**: he approves or declines each request. An approved outside buyer receives his rates like a subscriber, but sees **his own-area rate, labelled only "[area] rate"**, e.g. "₹56,500 — Karad rate".
+- **Outside-buyer limit:** without a paid reach plan a seller can approve outside buyers up to the outside-buyer limit; beyond it he sees an upgrade prompt.
+- **All limits are settings admins can change** (`settings`):
+  - free reach per role;
+  - the customer limit (starting at 20; lowering it never deletes customers above it, they stay but no more can be added);
   - the outside-buyer limit (starting at 10).
 
   Plans and limits are stored as data, never hardcoded.
@@ -399,6 +417,7 @@ The database parts already built for later phases stay as they are. **Charging i
   - **"Invite to ALEE"** from any client-book customer, which sends his store link on WhatsApp.
 
 #### Client book and follow-ups
+- **For every seller:** retailers, wholesalers, distributors and manufacturers. Free up to the customer limit (20). A separate paid **client-book plan** allows more, independent of reach plans; a seller can hold either, both or neither.
 - **One ID per customer:** each customer has one fixed ID, used everywhere.
 - **Follow-ups:** each has a customer, due date, note, and pending or done.
   - **Today and overdue:** a list of today's and overdue follow-ups, with a reminder alert on the day.
@@ -423,13 +442,15 @@ The database parts already built for later phases stay as they are. **Charging i
   - enquiries and rate requests from outside his reach;
   - reaching the customer or outside-buyer limits.
 
-  Each message has a link to upgrade, which in Phase 1 means contacting ALEE.
+  Each message has a link to upgrade, which in Phase 1 means contacting ALEE. **Built but switched off by default**; an admin switches it on per district once there is real traffic.
+- **Gap nudge:** tell the seller when enquiries come from an area he hasn't set up, e.g. "12 enquiries from Surat this week. Set a Surat rate?"
 
 #### ALEE Assist
 - **Default:** enquiries go to the seller.
 - **"Let ALEE find me the best deal":** for enquiries at or above a minimum quantity, the buyer can choose this, and the enquiry goes to ALEE's admin instead.
 - **The minimum:** set per product family (TMT starts at 20 tonnes); admins can change it. Kg or piece quantities are converted to tonnes through weight.
 - **Seller opt-in:** sellers can opt in to "ALEE may bring me deals", recorded with its date. The commercial terms are agreed outside the app and never stored in the repository.
+- **Written rules first:** before Assist goes live, its rules must be decided (open question in docs/decisions.md): opt-in, disclosed commission on closed deals only, never sharing one seller's quote with another, no payment or credit risk for ALEE, and whether it runs under a separate name.
 - **Both sides agree:** ALEE only brokers where both sides agreed.
 
 ### Phase 1.1 (after launch)
@@ -437,12 +458,11 @@ The database parts already built for later phases stay as they are. **Charging i
 - **Orders** — buyer places an order at the verbally agreed rate, seller accepts, seller adds actual weight and vehicle number on dispatch, bill attached to the order
 - Storage tier
 - **Supplier prompt** — when a seller publishes, his subscribed retailers who also sell are prompted to update their own rates
-- Screens for brands with several factories (the database part is built)
 - Online payments
 - Featured placement, including "also ask these sellers" suggestions when a buyer compares
 
 ### Phase 2
-Client book sites, counters, salespeople, reassignment, leads and stock levels.
+Client book sites, counters, salespeople, reassignment, leads and stock levels. **AI setup helper:** reads a seller's existing WhatsApp rate message and fills his setup for him to confirm; AI never publishes prices without a person confirming.
 
 ---
 
@@ -472,15 +492,15 @@ Each engine is built once, tested thoroughly, and used everywhere. Screens never
 
 | Engine | Job |
 |---|---|
-| **Rate** | Returns a buyer's final rate from seller, **brand**, product, size and location. Applies factory coverage, territory, reach, exclusions, area resolution, charts and discount; adds ex-works where switched on. Runs in the database: the buyer's answer holds final figures only; the seller's answer holds every component. |
+| **Rate** | Returns a buyer's final rate from seller, **brand**, product, size and location. Applies factory coverage, territory, reach, exclusions, area resolution, charts and discount; ex-works only in areas not set up, where switched on. Runs in the database: the buyer's answer holds final figures only; the seller's answer holds every component. |
 | **Access** | Decides who can see and do what: subscription, public/private, approval, blocking, territory. |
 | **Notification** | On publish: finds recipients, respects alert settings, sends **one** message per publish event however many products changed, queues and retries. Publishing must return immediately without waiting for sends. Per-buyer delivery records are deleted after 90 days (the one exception to "never delete"). |
 | **Market status** | Open or closed now, from the seller's close time in IST. |
 | **History** | Records which chart and setting versions applied at each publish. |
-| **Reach** | Decides which buyers may see a seller's rate: a free retailer's own taluka, his plan's wider reach, and the outside buyers he approved. Applied by the rate engine. |
-| **Plans and limits** | Which plan each seller is on (start, end, history), and the limits that follow from it, read from settings. |
+| **Reach** | Decides which buyers may see a seller's rate, for every role: his free reach (by role, from settings), his reach plan's wider areas, and the outside buyers he approved. Applied by the rate engine and by area setup. |
+| **Plans and limits** | Which reach plan and client-book plan each seller is on (start, end, history), and the limits that follow from them, read from settings. |
 | **Follow-up** | Today's and overdue follow-ups, reminders, closing them when a call or visit is logged, and asking for the next date. |
-| **Nudge** | Reminders to new or inactive retailers and the weekly "What you're missing" message, from settings, respecting opt-out. |
+| **Nudge** | Reminders to new or inactive retailers, the gap nudge (enquiries from areas he hasn't set up), and the weekly "What you're missing" message (off by default, switched on per district), from settings, respecting opt-out. |
 | **Supplier prompt** *(Phase 1.1)* | Finds subscribed retailers who also sell, and prompts them. |
 | **Search** | Sellers by product, area or name, including region aliases. |
 | **Order** *(Phase 1.1)* | Moves orders between placed, accepted and dispatched; controls who can make each move. |
@@ -493,7 +513,9 @@ Each engine is built once, tested thoroughly, and used everywhere. Screens never
 - A brand owner's rate comes from the factory covering the buyer's area (closer area wins); a factory that left means not offered, never another factory
 - Type B hides the appointed distributor's rate for that brand only; his other brands and other sellers of the brand are unaffected
 - A free retailer's rate is shown only to buyers in his own taluka; a buyer elsewhere sees none, unless his rate request was approved
-- An approved outside buyer sees the retailer's own-area rate, labelled ("₹56,500 — Karad rate. Delivery to Pune: ask seller.")
+- An approved outside buyer sees the seller's own-area rate, labelled only "[area] rate" ("₹55,500 — Karad rate")
+- Every role's reach: a wholesaler or distributor reaches his district, a manufacturer his state; area setup beyond reach is refused ("Upgrade to reach more areas")
+- A factory that leaves the brand but keeps selling it is shown as an ordinary seller of that brand
 - A lapsed plan: settings beyond his taluka stop applying, and are still saved
 - Exact city match
 - Fall back to taluka, then district, then state
@@ -515,9 +537,9 @@ Each engine is built once, tested thoroughly, and used everywhere. Screens never
 - Different charts in different areas of the same state
 - Discount as a flat amount and as a percentage
 - A historical rate rebuilds exactly after charts have since been changed
-- A buyer outside every configured area is not served: "Doesn't currently supply [area]", no area rate
-- Ex-works is off by default, shown once switched on, shown in an unserved area, and never shown in a Type A area
-- A paid retailer's ex-works shows inside his paid reach only; a free retailer never has ex-works
+- An area he excluded: "Doesn't currently supply [area]"; an area not set up, ex-works off: "Price on request — send enquiry"
+- Ex-works is off by default, switched on per state, shown only in areas not set up, never beside an area rate, never outside his reach, never in a Type A area, and not blocked by a missing setting when the plant city's figures are complete
+- A past publish returns only what was published; a day with no record shows "No data available for that day"
 - A buyer's answer never contains the basic rate or any individual difference
 
 ---
