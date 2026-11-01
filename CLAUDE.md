@@ -99,10 +99,11 @@ Stop and explain the risk instead.
 - live behaves differently from dev.
 
 ### 6. Live database
-- **Only on the owner's explicit instruction in that message.** Write **LIVE** in capitals before every live step.
-- **Backup:** confirm a fresh backup exists first.
+- **The owner runs every live step himself.** Claude prepares everything and gives him exact, step-by-step commands, each marked **LIVE** in capitals. Claude never links to live or runs anything against it.
+- **Only when he asks for it, in that message.**
+- **Backup:** the steps start by confirming a fresh backup exists.
 - **Only migrations that already passed on dev.** Nothing new, nothing by hand.
-- **Link back:** link back to alee-dev immediately after, and confirm it.
+- **Link back:** afterwards the owner links back to alee-dev. Claude then confirms the link with the Supabase CLI (never by reading keys).
 - **If something goes wrong on live:**
   - stop, and do not try fixes on live;
   - tell the owner what happened, what users see, and the options.
@@ -128,10 +129,19 @@ Stop and explain the risk instead.
 - How to undo.
 - What he needs to push (`git push origin main`).
 
-### Command blocks
-`.claude/settings.json` blocks the most dangerous commands and asks before others. **It is a safety net, not a guarantee.** These written rules apply whether or not a command is blocked.
+### Owner-only actions
+Claude never does these. When one is needed, Claude gives the owner the exact steps or the exact text, and the owner does it himself:
+- **pushing to GitHub** (`git push`, in any form);
+- **switching databases:** `supabase link` or `unlink`;
+- **anything on the live database** (rule 6), including any Supabase command while the linked project is not alee-dev, using `--db-url`, naming another project, or `--allow-live`;
+- **changing anything in `.claude/`:** the safety hook and the settings. Claude gives the exact text; the owner pastes it in;
+- **reading, changing or deleting the key files** `.env.local` and `.env.local.live-backup`.
 
-**Known gap (found 2026-11-01):** the shell's `>` (for example `echo x > .env.local`, or `: > .env.local`) can still empty or overwrite the key files. The permission rules did not stop it in testing, even with a rule aimed at it. Deleting, moving, `tee` and PowerShell overwrites are blocked. Never write to a `.env` file by any means.
+### Command blocks
+- **The real protection is the safety hook** (`.claude/hooks/safety-check.mts`). It runs before every command and every file edit, and **refuses** the owner-only actions above: "Blocked: owner-only action. Give the owner the exact steps." (or, for the key files, "Blocked: .env files hold keys. Ask the owner."). Refusals work in every mode.
+- **"Ask" rules are not reliable in auto mode.** The "ask" rules in `.claude/settings.json` were found (2026-11-01) to be settled by Claude Code itself in auto mode, without asking the owner. Never count on an "ask" rule to stop something; only refusals do.
+- **The "deny" rules** in `.claude/settings.json` also stay, for force push, `git reset --hard`, `git clean`, `rm -rf`, `supabase db reset` and similar.
+- **All of this is a safety net, not a guarantee.** A script could still do something without naming it in a command. These written rules apply whether or not a command is blocked.
 
 ---
 
@@ -200,7 +210,13 @@ Do all of these in the same piece of work as the migration. A table change is no
 
 1. Change applied and tested on alee-dev.
 2. Committed to GitHub.
-3. On the owner's explicit instruction only: link the CLI to live, apply pending migrations, run the same access tests (`npm run check:db -- --allow-live`; checks are rolled back and leave nothing behind), then **link back to alee-dev immediately** and confirm.
+3. On the owner's explicit instruction only, **the owner runs these steps himself**, from exact commands Claude prepares (section 3A, rule 6):
+   - link the CLI to live;
+   - apply the pending migrations;
+   - run the same access tests (`npm run check:db -- --allow-live`; checks are rolled back and leave nothing behind);
+   - **link back to alee-dev immediately.**
+
+   Claude then confirms the link is alee-dev.
 
 Before launch, live may be updated at the end of each build stage. After launch: take a backup first, apply at a quiet time (not during morning publishing), and treat it as a deliberate checklist.
 
