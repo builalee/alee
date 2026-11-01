@@ -41,6 +41,94 @@ The owner is a steel trader with 15 years' industry experience. He is **not tech
 
 ---
 
+## 3A. Safety rules — read before any risky task
+
+### 1. Three levels of work
+| Level | What it covers | What to do |
+|---|---|---|
+| **GREEN** | Wording, documents, screen layout and styling, new checks, reading code. | Go ahead. |
+| **AMBER** | New migrations on alee-dev; the rate engine; who-sees-what rules; login; sending notifications; adding or updating any package; settings files; anything touching more than about 10 files. | Explain first, then wait for the owner's "go". |
+| **RED** | Anything on the live database; changing or removing existing data, even on dev; security rules on tables that already hold data; login/OTP setup; payments; major version upgrades (Next.js, React, Node, Supabase, Postgres, Capacitor); hosting and deploy settings; keys and secrets; anything that cannot be undone. | Explain first, then wait for the owner's "go". He may bring in a paid expert. |
+
+**If unsure, treat it as the higher level.**
+
+### 2. Before any AMBER or RED task
+Stop and tell the owner:
+- what you will do and why;
+- which database or environment;
+- what could break, and who would notice (sellers, buyers, the owner);
+- how we undo it;
+- whether it touches existing data.
+
+Then wait. **Only a "go" given for that exact task counts.** An earlier "ok" about something else is not a go.
+
+### 3. Never do these, even if asked in passing
+Stop and explain the risk instead.
+- Force push, rewrite git history, or delete branches on GitHub.
+- Drop or empty tables or columns that hold data. Delete or update rows without a condition.
+- Turn off Row Level Security, or loosen a security rule to make something work.
+- Edit or delete a migration that is already applied. Write a correcting one.
+- Delete, weaken, skip or rewrite a check so it passes.
+- Put the secret/service-role key in screens, the phone app, logs, commits or chat. Print any key.
+- Commit any `.env` file.
+- Write prices, plan costs, commission rates, revenue figures or business strategy into the repository.
+- Change live data by hand in the dashboard.
+- Let code or AI publish a price without a human confirming.
+- Touch live without the owner's explicit instruction in that same message.
+
+### 4. How work is done
+- **Branches:** AMBER and RED work happens on a separate branch, never directly on `main`.
+- **Commit first:** commit before any risky step, so we can go back.
+- **Small steps:** one purpose per commit.
+- **Before saying "done":**
+  - Run all checks: `npm run check:db`, lint (`npm run lint`), type check (`npx tsc --noEmit`) and build (`npm run build`).
+  - Give the owner the result.
+  - Never say "done" with failing checks.
+  - Never say "tested" for something not actually run.
+
+### 5. Stop and report to the owner (do not keep trying) when
+- the same problem fails twice;
+- a fix would need turning off security, a check, or a rule in this file;
+- the change grows much bigger than you told him;
+- you find something unexpected in the data or code;
+- his instruction conflicts with this file or docs/decisions.md;
+- live behaves differently from dev.
+
+### 6. Live database
+- **Only on the owner's explicit instruction in that message.** Write **LIVE** in capitals before every live step.
+- **Backup:** confirm a fresh backup exists first.
+- **Only migrations that already passed on dev.** Nothing new, nothing by hand.
+- **Link back:** link back to alee-dev immediately after, and confirm it.
+- **If something goes wrong on live:**
+  - stop, and do not try fixes on live;
+  - tell the owner what happened, what users see, and the options.
+
+### 7. Updates and packages
+- **Monthly update day only:** small updates (patch or minor), on a branch. Run all checks, and test the preview on a phone.
+- **Major upgrades:** write a plan only. Never do them without the owner and an expert.
+- **A new package:** tell the owner what it is, why we need it, who maintains it, how widely it is used, and its licence. Prefer no new package.
+- **Never run scripts copied from the internet** (for example `curl ... | bash`).
+
+### 8. Deploy
+- **Production** only after the preview is checked, including the phone app.
+- **Before every deploy,** write down how to roll back (Vercel Instant Rollback to the previous version).
+- **When a database change and a screen change depend on each other:**
+  - the database change goes first;
+  - it must still work with the old screens.
+
+### 9. Report after every task, in plain words
+- What was done.
+- Checks: passed or failed, with numbers.
+- What the owner should test himself.
+- Risks or open points.
+- How to undo.
+- What he needs to push (`git push origin main`).
+
+### Command blocks
+`.claude/settings.json` blocks the most dangerous commands and asks before others. **It is a safety net, not a guarantee.** These written rules apply whether or not a command is blocked.
+
+---
+
 ## 4. Environments
 
 | | Supabase project | Purpose |
