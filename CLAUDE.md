@@ -131,6 +131,8 @@ Stop and explain the risk instead.
 ### Command blocks
 `.claude/settings.json` blocks the most dangerous commands and asks before others. **It is a safety net, not a guarantee.** These written rules apply whether or not a command is blocked.
 
+**Known gap (found 2026-11-01):** the shell's `>` (for example `echo x > .env.local`, or `: > .env.local`) can still empty or overwrite the key files. The permission rules did not stop it in testing, even with a rule aimed at it. Deleting, moving, `tee` and PowerShell overwrites are blocked. Never write to a `.env` file by any means.
+
 ---
 
 ## 4. Environments
