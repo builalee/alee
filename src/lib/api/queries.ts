@@ -66,7 +66,7 @@ function remembered<T>(load: () => Promise<T | null>) {
 }
 
 /** Maharashtra's districts, in name order (decision 16.1). Always by id afterwards. */
-export const getDistricts = cache(remembered(async () => {
+const loadDistricts = remembered(async () => {
   const supabase = await createClient();
   const { data: state } = await supabase
     .from("regions").select("id, name").eq("level", "state").eq("name", "Maharashtra").single();
@@ -74,7 +74,9 @@ export const getDistricts = cache(remembered(async () => {
     .eq("parent_id", state?.id).eq("is_active", true).eq("is_approved", true).order("name");
   if (!data?.length) return null;
   return data.map((d) => ({ id: d.id as string, name: d.name as string, stateName: state?.name as string }));
-}));
+});
+
+export const getDistricts = cache(async () => (await loadDistricts()) ?? []);
 
 /** The product family the demo sells: the first one with sizes switched on. */
 export const getFamily = cache(remembered(async () => {
