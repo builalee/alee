@@ -77,11 +77,15 @@ Stop and explain the risk instead.
 - Touch live without the owner's explicit instruction in that same message.
 
 ### 4. How work is done
-- **Branches:** AMBER and RED work happens on a separate branch, never directly on `main`.
+- **Branches are the normal way to work.** AMBER and RED work always happens on a branch, never directly on `main`.
+  1. Work on a branch.
+  2. When all checks pass, report to the owner and wait for his "go".
+  3. After his "go", Claude merges the branch into `main` and deletes the branch.
+  4. The owner only pushes (`git push origin main`). Claude never pushes.
 - **Commit first:** commit before any risky step, so we can go back.
 - **Small steps:** one purpose per commit.
 - **Before saying "done":**
-  - Run all checks: `npm run check:db`, lint (`npm run lint`), type check (`npx tsc --noEmit`) and build (`npm run build`).
+  - Run all checks: `npm run check:db`, lint (`npm run lint`), type check (`npm run typecheck`) and build (`npm run build`).
   - Give the owner the result.
   - Never say "done" with failing checks.
   - Never say "tested" for something not actually run.
