@@ -6,7 +6,7 @@ Every table in the database, what it holds in plain words, who can see and chang
 - **Keep it current:** whenever a table changes, update this page in the same piece of work (see CLAUDE.md, section 5).
 - **Checks:** each area has saved checks in `tests/database/`. Run them with `npm run check:db`.
 
-Last updated: 2026-10-17.
+Last updated: 2026-10-29.
 
 ---
 
@@ -459,7 +459,7 @@ An area the version doesn't mention has no row; everything carries down to it fr
   - A misspelt setting name is refused, so a typo can never become "not set".
   - An empty list means the seller serves nowhere.
   - A seller saves his own; an admin may save for any seller.
-- **`resolve_area_settings(seller, family, area, grade, version, brand)`** looks up the settings that apply to the whole area: served or not, area difference, discount chart, display unit, grade premium, and whether the grade is sold. One query; latest version unless one is given.
+- **`resolve_area_settings(seller, family, area, grade, version, brand)`** looks up the settings that apply to the whole area: served or not, area difference, discount chart, display unit, grade premium, and whether the grade is sold. It also says which area each came from (for the seller's breakdown). One query; latest version unless one is given.
   - **Order:** each setting is looked up separately, most specific first: city, taluka, district, state, everywhere. The first value actually set wins, so 0 is used and never skipped.
   - **Served:** decided by the most specific area the seller mentioned. An exclusion there beats any broader area, including "everywhere". Nothing mentioned means not served. A city named inside an excluded district is served.
   - **Not served:** every setting comes back empty, so nothing is revealed.
@@ -601,6 +601,127 @@ About `resolve_territory`:
 
 ---
 
+## Area: roles, plans and reach
+
+Who is a retailer, which plan each seller is on, and so how far his rates reach (docs/decisions.md 9.3, 10.1–10.5). **No price, plan cost or commission is stored anywhere.**
+
+### `role_requests` — every request for a higher role
+| Column | Meaning |
+|---|---|
+| `account_id` | Who asked. |
+| `requested_role` | Wholesaler, distributor or manufacturer (never retailer: everyone is one already). |
+| `status` | `requested` → `approved` or `refused`, once. |
+| `decided_by`, `decided_at` | The admin, and when. |
+
+- **Signing up** as a wholesaler, distributor or manufacturer creates a waiting request automatically. Until an admin approves it, the account **is a retailer**.
+- **`approved_role(account)`:** the role an account actually has: the latest approved one, otherwise retailer. Internal (the engines use it); nobody can call it directly.
+- **`request_role(role)`:** asking later. One waiting request at a time.
+- **`decide_role_request(request, approve)`:** admins only.
+- **Who sees:** each person his own requests; admins all. Nobody changes a decision or deletes a request, not even the database owner.
+- **Checks:** `tests/database/roles.sql`.
+
+### `plans` — plans and their limits, set by admins
+| Column | Meaning |
+|---|---|
+| `name` | E.g. "Free". |
+| `is_free` | Exactly one plan is the free plan: what applies when no paid plan does. |
+| `reach_level` | How far a retailer's rates reach from his location: `taluka`, `district` or `state`. |
+| `customer_limit`, `outside_buyer_limit` | Limits. Empty = no limit. |
+
+- **Seeded:** the free plan: reach taluka, 30 customers, 10 outside buyers (decision 10.5). Admins change these; they are settings, never hardcoded.
+- **Who sees and changes:** logged-in users see plans; only admins add or change them. The free plan can't be switched off. Nobody can delete a plan.
+
+### `seller_plans` — which paid plan a seller is on, from when to when
+- One row each time an admin switches a plan on (`switch_on_plan(seller, plan, starts, ends)`; payment happens outside the app in Phase 1). Plans can't overlap.
+- **Never changed**, except `end_plan_early(record)`, once. Never deleted. The history of every plan a seller had stays.
+- **`seller_plan_at(seller, moment)`:** the plan in force then, otherwise the free plan.
+- **Who sees:** the seller his own; admins all.
+
+### Reach: `seller_reach(seller, moment)`
+- **Only retailers are reach-limited.**
+- **Home area:** the taluka of his profile location (his location itself if it has no taluka above it). An approved outside buyer sees the rate for this area.
+- **Reach area:** his plan's level above his location: his taluka on the free plan, his district or state on a paid one.
+- **When a plan lapses**, reach returns to his taluka. His settings beyond it stay saved; the rate engine stops applying them.
+- Internal; the rate engine and the request functions use it.
+- **Checks:** `tests/database/plans.sql`.
+
+---
+
+## Area: outside-buyer rate requests
+
+### `rate_requests` — a buyer outside a retailer's reach asking for his rates
+| Column | Meaning |
+|---|---|
+| `seller_id`, `buyer_id` | Who asked whom. |
+| `status` | `requested` → `approved`, `declined` or `withdrawn`; `approved` → `ended`. Forward only. |
+| `requested_at`, `decided_at`, `closed_at`, `closed_by` | When, and who closed it. |
+
+- **`request_rates(seller)`:** only a buyer outside a reach-limited seller's reach can ask. One open request per pair at a time.
+- **`decide_rate_request(request, approve)`:** the seller (or an admin). Approving stops at his plan's outside-buyer limit, with "Upgrade to approve more."
+- **`end_rate_request(request)`:** the buyer withdraws a waiting request; either side ends an approval.
+- **`is_approved_outside_buyer(seller, buyer)`:** internal, for the rate engine.
+- **Who sees:** the seller and the buyer their own requests; admins all. Nothing deleted.
+- **Checks:** `tests/database/rate_requests.sql`.
+
+---
+
+## Area: ex-works setting
+
+### `seller_ex_works_versions` — every change of a seller's ex-works setting
+| Column | Meaning |
+|---|---|
+| `is_on` | Whether buyers are shown his ex-works rate. **No row = off.** |
+| `plant_region_id` | His plant city, used for the "Ex-[plant city]" label and the settings the ex-works figure uses. |
+| `set_at`, `set_by`, `by_admin` | When, who, and whether an admin did it. |
+
+- **`set_ex_works(on, plant city, seller)`:** with no plant city named, the last one is kept, or his profile location is used. A free retailer can't switch it on ("Ex-works rates come with a paid plan."). An admin can act for a seller, recorded as admin.
+- **`ex_works_at(seller, moment)`:** the setting in force then. Internal, for the rate engine.
+- **Who sees:** the seller his own; admins all. Never changed or deleted: each change is a new row.
+- **Checks:** `tests/database/ex_works.sql`.
+
+---
+
+## Area: the rate engine
+
+No tables: it reads everything above and records nothing. Decisions: CLAUDE.md section 8, docs/decisions.md 12.
+
+### What it answers
+For one seller, brand, product family and buyer's area (optionally one grade and size, a buyer, or an earlier publish), one line per grade and size:
+- **the area rate:** basic + grade premium + size difference + loading + area difference, labelled "[area] rate";
+- **the ex-works rate**, where switched on: basic + grade premium + size difference + loading, at his plant city, labelled "Ex-[plant city]";
+- **the discount** beneath each: flat per unit, or that percentage of the figure;
+- in the area's display unit, converted through weight and **rounded once to the paisa**;
+- open or closed, closing time, when published, whether it was a correction;
+- a tag or message, and a **status**.
+
+### The order of checks
+| Step | Status when it stops | What the buyer sees |
+|---|---|---|
+| 1. Factory (brand owner and his factories, once coverage is set) | `served_by_factory` / `not_served` | "Check Shakti in Pune is supplied by Gopal Steel" / "Doesn't currently supply Pune" |
+| 2. Territory, per brand | `buy_from_distributor` (Type A) / `priced_by_brand_owner` (Type B, the distributor's own line) | "For Check Shakti in Sangli, buy from Dev Traders, the authorised distributor." No figure, no ex-works. Type B for the factory: priced, with the tag. |
+| 3. Reach (retailers) | `reach_limited` | "Tara Hardware shares rates with buyers in Karad." No figure, no ex-works. An approved outside buyer instead gets the home-area rate: "Karad rate. Delivery to Pune: ask seller." |
+| 4. Not quoting | `not_quoting` | "Not quoting today" |
+| 5. No publish yet | `not_published` | "No rate published yet" |
+| 6. Grade and size offered, grade sold here | `not_offered` | "Not offered" / "Fe500D is not sold in Sangli" |
+| 7. Served | `not_served` | "Doesn't currently supply Goa", plus ex-works if on |
+| 8–9. Settings from the publish's pinned versions; anything missing | `missing` | "Rate not available". The seller is told exactly what to fix. |
+| Otherwise | `priced` | The figures |
+
+`reach_limited` is a distinct status so the weekly "What you're missing" message can count it.
+
+### Ways in
+| Function | Who can call | Returns |
+|---|---|---|
+| `buyer_rate(...)` | The seller himself and admins, for now (buyers come with subscriptions). A visitor is told "Log in to see rates." | `buyer_rate_line`: final figures, labels, discount lines, unit, market, tag, message. **Never** the basic rate, grade premium or any individual difference. |
+| `seller_rate(...)` | The seller and admins | `rate_line`: every component in his pricing unit, where each came from, and what's missing. |
+| `rate_preview(brand, family, basic rate)` | The seller and admins | `rate_line` for every area in his current setup, worked out with the rate he's about to publish (default: his latest) and his **current** settings. Areas beyond his plan's reach show "Saved, not applied on your plan". For the publish confirmation. |
+| `rate_engine(...)` | Nobody directly | The shared engine all three use. |
+
+- **A past publish** rebuilds from the versions it pinned, so the figures are exactly as shown then, whatever has changed since.
+- **Checks:** `tests/database/rate_engine.sql`, covering every rate engine case in CLAUDE.md section 20.
+
+---
+
 ## Shared machinery
 
 | Name | What it does |
@@ -610,7 +731,10 @@ About `resolve_territory`:
 | `prevent_delete()` | Blocks deletes on catalogue tables (segments, products, sizes), for everyone. |
 | `prevent_direct_delete()` | Blocks deletes on personal tables except when the whole account is being deleted. |
 | `prevent_update()` | Blocks every change to rows that must never change once saved (chart versions and their figures), for everyone. |
-| `convert_per_unit(amount, from, to)` | The one place an amount is converted between per tonne and per kg. Exact to 4 decimal places or refused. Piece and metre need a size's weight and belong to the rate engine. |
+| `convert_per_unit(amount, from, to)` | Converts a stored amount between per tonne and per kg (used when copying templates). Exact to 4 decimal places or refused. |
+| `convert_rate(amount, from, to, size)` | The one place a rate is converted between tonne, kg, piece and metre, **through weight** (`kg_per_unit`: weight per metre, times piece length for a piece). Exact; never rounded. A size whose weight isn't verified is refused. |
+| `format_rupees(amount)` | The one place rupees are written: Indian grouping, rounded to the paisa (half rounds up), ".00" hidden on whole figures. ₹56,500; ₹1,23,456.50; ₹6.50. |
+| `region_within(region, area)` | Whether a region is the area or inside it. |
 | `resolve_territory(manufacturer, family, area)` | The territory allocation in effect closest to a buyer, if any. Public; no rates. The rate engine checks it first. |
 | `market_status(seller, family, at)` | Open, closed, not quoting or not published, now or at any moment. Public. The market status engine. |
 | `rupees` | Every money amount. Exact, up to 4 decimal places. More precision is refused, never rounded. |
@@ -627,13 +751,14 @@ About `resolve_territory`:
 
 These appear in CLAUDE.md but have no tables yet. Phase 1 unless marked; phases are in CLAUDE.md section 18:
 
-- signup role requests and approvals; plans, reach and their limits; outside-buyer rate requests
+- the free plan's area-setup limit: saving an area beyond his taluka should show "Upgrade to reach more areas" (the rate engine already stops applying such areas)
+- screens for role requests, plans and outside-buyer requests (the database parts are built)
+- logging admin reads of seller data (decision 6.5), with the API layer
 - client book, follow-ups and activity log; nudges and "What you're missing"
 - ALEE Assist (enquiry routing and seller opt-in); per-buyer notification delivery records (deleted after 90 days)
 - orders and bills *(Phase 1.1)*; supplier prompt *(Phase 1.1)*; online payments *(Phase 1.1)*
 
-- the rate engine itself (it will use `resolve_area_settings`, `resolve_size_figures` and `convert_per_unit`)
 - the area setup screen (it must show a plain coverage summary, e.g. "Kolhapur district: not served, except Kolhapur city")
 - notifications on publish (one per publish)
 - enquiries (an enquiry after close must be marked "received after close", and the buyer told the seller will respond when the market opens; an enquiry from a Type B territory area goes to the authorised distributor)
-- subscriptions and the buyer feed
+- subscriptions and the buyer feed (they will open `buyer_rate` to buyers: any logged-in user for a public seller, approved subscribers for a private one)
