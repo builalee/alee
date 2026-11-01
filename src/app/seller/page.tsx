@@ -14,8 +14,7 @@ function Step({ href, label, done }: { href: string; label: string; done: boolea
 
 export default async function SellerPage() {
   const me = await requireAccount();
-  const profile = await getProfile(me.id);
-  const family = await getFamily();
+  const [profile, family] = await Promise.all([getProfile(me.id), getFamily()]);
 
   if (!profile || !family) {
     return (
@@ -29,11 +28,13 @@ export default async function SellerPage() {
   }
 
   const lines = await getBrandLines(me.id, family.id);
-  const checks = await Promise.all(lines.map(async (line) => ({
-    line,
-    offering: await getOffering(me.id, line.id, family.id),
-    missing: await getMissing(me.id, line.id, family.id),
-  })));
+  const checks = await Promise.all(lines.map(async (line) => {
+    const [offering, missing] = await Promise.all([
+      getOffering(me.id, line.id, family.id),
+      getMissing(me.id, line.id, family.id),
+    ]);
+    return { line, offering, missing };
+  }));
 
   return (
     <Screen title={text.seller.title} back="/">

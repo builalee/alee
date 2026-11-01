@@ -16,12 +16,11 @@ export const getMe = cache(async () => {
   const user = data.user;
   if (!user) return null;
 
-  const { data: account } = await supabase.from("accounts").select("*").eq("id", user.id).maybeSingle();
-  const { data: requests } = await supabase
-    .from("role_requests")
-    .select("requested_role, status, requested_at")
-    .eq("account_id", user.id)
-    .order("requested_at", { ascending: false });
+  const [{ data: account }, { data: requests }] = await Promise.all([
+    supabase.from("accounts").select("*").eq("id", user.id).maybeSingle(),
+    supabase.from("role_requests").select("requested_role, status, requested_at")
+      .eq("account_id", user.id).order("requested_at", { ascending: false }),
+  ]);
 
   const role: Role = requests?.find((r) => r.status === "approved")?.requested_role ?? "retailer";
   const pendingRole: Role | null = requests?.find((r) => r.status === "requested")?.requested_role ?? null;
@@ -50,25 +49,43 @@ export async function requireAdmin() {
   return me;
 }
 
+/**
+ * Public lists that rarely change are remembered for ten minutes, so a page
+ * doesn't wait for them on every visit. Rates and personal data never are.
+ */
+const REMEMBER_MS = 10 * 60 * 1000;
+
+function remembered<T>(load: () => Promise<T | null>) {
+  let saved: { value: T; at: number } | null = null;
+  return async () => {
+    if (saved && Date.now() - saved.at < REMEMBER_MS) return saved.value;
+    const value = await load();
+    if (value) saved = { value, at: Date.now() };
+    return value;
+  };
+}
+
 /** Maharashtra's districts, in name order (decision 16.1). Always by id afterwards. */
-export const getDistricts = cache(async () => {
+export const getDistricts = cache(remembered(async () => {
   const supabase = await createClient();
   const { data: state } = await supabase
     .from("regions").select("id, name").eq("level", "state").eq("name", "Maharashtra").single();
-  const { data } = await supabase
-    .from("regions").select("id, name").eq("level", "district").eq("parent_id", state?.id).order("name");
-  return (data ?? []).map((d) => ({ id: d.id as string, name: d.name as string, stateName: state?.name as string }));
-});
+  const { data } = await supabase.from("regions").select("id, name").eq("level", "district")
+    .eq("parent_id", state?.id).eq("is_active", true).eq("is_approved", true).order("name");
+  if (!data?.length) return null;
+  return data.map((d) => ({ id: d.id as string, name: d.name as string, stateName: state?.name as string }));
+}));
 
 /** The product family the demo sells: the first one with sizes switched on. */
-export const getFamily = cache(async () => {
+export const getFamily = cache(remembered(async () => {
   const supabase = await createClient();
-  const { data: segments } = await supabase
-    .from("segments").select("id, name, default_base_unit").eq("is_active", true).order("sort_order");
-  const { data: sizes } = await supabase.from("sizes").select("segment_id").eq("is_active", true);
+  const [{ data: segments }, { data: sizes }] = await Promise.all([
+    supabase.from("segments").select("id, name, default_base_unit").eq("is_active", true).order("sort_order"),
+    supabase.from("sizes").select("segment_id").eq("is_active", true),
+  ]);
   const live = new Set((sizes ?? []).map((s) => s.segment_id));
   return segments?.find((s) => live.has(s.id)) ?? null;
-});
+}));
 
 export async function getAdminQueue() {
   const supabase = await createClient();
@@ -80,11 +97,13 @@ export async function getAdminQueue() {
   ]);
 
   const ids = [...new Set((roles.data ?? []).map((r) => r.account_id))];
-  const { data: accounts } = await supabase.from("accounts").select("id, full_name, firm_name").in("id", ids);
   const brandIds = (claims.data ?? []).map((c) => c.brand_id);
-  const { data: claimed } = await supabase.from("brands").select("id, name").in("id", brandIds);
   const makerIds = (claims.data ?? []).map((c) => c.manufacturer_id);
-  const { data: makers } = await supabase.from("seller_profiles").select("account_id, store_name").in("account_id", makerIds);
+  const [{ data: accounts }, { data: claimed }, { data: makers }] = await Promise.all([
+    supabase.from("accounts").select("id, full_name, firm_name").in("id", ids),
+    supabase.from("brands").select("id, name").in("id", brandIds),
+    supabase.from("seller_profiles").select("account_id, store_name").in("account_id", makerIds),
+  ]);
 
   return {
     roles: (roles.data ?? []).map((r) => {
@@ -112,13 +131,11 @@ export async function getBrandLines(sellerId: string, familyId: string) {
   const { data: lines } = await supabase.from("seller_brands").select("brand_id")
     .eq("seller_id", sellerId).eq("segment_id", familyId).eq("is_active", true);
   const brandIds = (lines ?? []).map((l) => l.brand_id);
-  const [{ data: brands }, { data: claims }] = await Promise.all([
+  const [{ data: brands }, { data: claims }, names] = await Promise.all([
     supabase.from("brands").select("id, name, is_regular, owner_id").in("id", brandIds),
     supabase.from("brand_claims").select("brand_id, status").eq("manufacturer_id", sellerId).eq("status", "claimed"),
+    Promise.all(brandIds.map((id) => supabase.rpc("brand_display_name", { p_brand_id: id, p_segment_id: familyId }))),
   ]);
-  const names = await Promise.all(
-    brandIds.map((id) => supabase.rpc("brand_display_name", { p_brand_id: id, p_segment_id: familyId })),
-  );
   return brandIds.map((id, i) => {
     const b = brands?.find((x) => x.id === id);
     return {
