@@ -112,7 +112,12 @@
       "PowerShell(npm uninstall*)",
       "PowerShell(npm update*)",
       "Edit(/supabase/migrations/**)",
-      "Edit(/.claude/settings.json)"
+      "Edit(/.claude/settings.json)",
+      "Edit(/.claude/hooks/**)",
+      "Bash(*.claude/hooks*)",
+      "Bash(*.claude\\hooks*)",
+      "PowerShell(*.claude/hooks*)",
+      "PowerShell(*.claude\\hooks*)"
     ]
   }
 }
