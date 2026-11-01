@@ -1006,3 +1006,22 @@ These limit the demo only. They change no Phase 1 rule.
 - **The unit is chosen once,** before the template is copied. Converting saved charts when a unit changes isn't built (2.8).
 - **The plant city is a district,** and is his profile location, since no cities are seeded.
 
+### 16.7 Where the databases sit
+**Found 2026-11-01:** alee-dev is in Seoul and The Alee App (the old live project) is in Tokyo. No reason was ever recorded. Supabase offers Mumbai, and a project's region can't be changed after it is created.
+
+**Decision (2026-11-01, by the owner):**
+- **alee-dev stays in Seoul,** for testing only. Work continues on alee-dev for now, including the demo. Vercel's Function Region is set to Seoul (icn1), beside it.
+- **The Alee App is paused and holds nothing that matters.** At launch, a fresh live project is created in Mumbai on Supabase Pro and rebuilt from the migration files. Vercel's region is then set to Mumbai (bom1).
+- **The owner deletes the old paused project himself,** only after the new one is set up.
+- **At launch, the safety hook and CLAUDE.md must be updated** with the new live project's details. The owner pastes that change in, because Claude can't edit the hook.
+
+**The login speed-up** (fewer checks with Supabase on each page) is put off until after the demo.
+
+### 16.8 Setup screens after the owner's first run
+**Decided 2026-11-01, from the owner's feedback.**
+- **Districts are added one at a time,** rather than listing all 36. A district he doesn't add stays "Price on request".
+- **"Same as base rate" is a tick, and is never already ticked.** An added district with no figure is refused, never saved as zero (2.24).
+- **The + and − are on grade premium and area difference.** Loading is a charge, so it has no minus.
+- **A saved form's button shows "Saved ✓" and stays inactive until something changes,** because each save of the rates screen writes a new version into history.
+- **A fuller redesign of setup is for after the demo.**
+
