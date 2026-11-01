@@ -988,3 +988,8 @@ These limit the demo only. They change no Phase 1 rule.
 ### 16.4 `@supabase/ssr` keeps people logged in
 **Decision (2026-11-01, approved by the owner):** Supabase's own helper package (MIT licence) keeps the login in a browser cookie. Hand-built login handling is riskier than the small cost of one package.
 
+### 16.5 Some Indian internet connections can't reach Supabase, so browsers and phones must never talk to it directly
+**Found 2026-11-01:** on the owner's home connection the router reported the alee-dev address (`*.supabase.co`) as non-existent, while a public lookup service (1.1.1.1) found it. Public reports describe Indian providers blocking Supabase since February 2026, unevenly by provider and city. We have not confirmed that this is the cause on his connection.
+
+**Rule:** every call to Supabase stays on the server (Vercel), outside the user's connection. Browser code and the phone app never call a Supabase address. This makes CLAUDE.md rule 1 essential for ALEE to work in India at all, not only tidy design. Local testing on an affected connection needs its DNS changed, or a Vercel preview instead.
+

@@ -15,6 +15,7 @@ export async function requestCode(_state: LoginState, form: FormData): Promise<L
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithOtp({ phone });
   if (error) {
+    console.error("Login code request failed:", error.code ?? error.name, error.status);
     const message = error.status === 429 ? text.login.tooManyRequests : text.login.couldNotSend;
     return { phone: null, error: message };
   }

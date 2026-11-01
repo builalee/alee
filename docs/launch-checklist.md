@@ -12,6 +12,12 @@ No prices or amounts belong in this file.
     2. Confirm Test Phone Numbers and OTPs is empty.
     3. Confirm a real SMS provider is set up, and send a real code to a real phone.
 
+- [ ] **ALEE works on every major Indian connection, with no call to Supabase from the browser or phone app**
+  - **How to check:**
+    1. On Jio, Airtel, Vi and BSNL mobile data, and on one home broadband line, log in and open rates.
+    2. Search `src` for any Supabase client used outside the server code (`src/lib/supabase`, `src/lib/api`, `src/proxy.ts`), and confirm there is none.
+    3. Open the site with the browser's network view and confirm no request goes to `supabase.co`.
+
 - [ ] **Uptime and error alerts reach the owner's phone**
   - **How to check:**
     1. Take the preview site down on purpose (or point the uptime monitor at a page that doesn't exist).
