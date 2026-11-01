@@ -582,10 +582,8 @@ select pg_temp.expect_message('A free retailer cannot set up Maharashtra, beyond
   $q$select save_area_settings((select tmt from k), jsonb_build_array(pg_temp.t_area((select mh from k), 0)), null, (select regular from k))$q$);
 select save_area_settings((select tmt from k), jsonb_build_array(pg_temp.t_area((select karad from k), 500)), null, (select regular from k));
 select publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'brand_id', (select regular from k), 'base_rate', 50000)));
-select pg_temp.expect_rows('A free retailer can switch ex-works on in her state; it shows only inside her reach', 1,
+select pg_temp.expect_message('A free retailer does not have ex-works', 'Ex-works rates come with a paid plan. Contact ALEE to upgrade.',
   $q$select set_ex_works((select mh from k), true)$q$);
-select pg_temp.expect_message('...but not in a state beyond her reach', 'Ex-works can be switched on only where you reach. Upgrade to reach more areas.',
-  $q$select set_ex_works((select goa from k), true)$q$);
 select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
 
 select pg_temp.expect_value('Free retailer, buyer inside her taluka: her rate only', 'priced | ₹55,500/tonne | Check Karad City rate',
@@ -616,6 +614,11 @@ create temp table tp as
 select switch_on_plan('00000000-0000-0000-0000-0000000000a2', (select id from plans where name = 'Check District'),
                       now() - interval '1 day', now() + interval '30 days') as id;
 grant select on tp to public;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a2');
+select pg_temp.expect_rows('A paid retailer switches ex-works on in her own state', 1, $q$select set_ex_works((select mh from k), true)$q$);
+select pg_temp.expect_message('...not in another state', 'As a retailer you can switch ex-works on only in your own state.',
+  $q$select set_ex_works((select goa from k), true)$q$);
+select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
 select pg_temp.expect_value('A paid plan widens reach to Satara; she has not set Satara up, so the buyer sees her ex-works rate',
   'ex_works | Ex-Check Karad City ₹55,000/tonne',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a2', (select regular from k), (select satara from k), 'Fe500', '12mm')$q$);
@@ -635,6 +638,10 @@ select pg_temp.expect_value('An approved outside buyer still gets her own-area r
 
 -- The plan lapses.
 select end_plan_early((select id from tp));
+select pg_temp.as_owner();
+select pg_temp.expect_value('After the lapse she has no ex-works anywhere, though her switch stays saved', 'off',
+  $q$select case when is_on then 'on' else 'off' end from ex_works_for('00000000-0000-0000-0000-0000000000a2', (select karad_city from k))$q$);
+select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
 select pg_temp.expect_value('A lapsed plan shrinks reach again: a Satara buyer sees no rate', 'reach_limited | Tara Hardware shares rates with buyers in Check Karad.',
   $q$select pg_temp.q('00000000-0000-0000-0000-0000000000a2', (select regular from k), (select satara from k), 'Fe500', '12mm')$q$);
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a2');

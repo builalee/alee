@@ -697,13 +697,14 @@ Which role each account has, the limits admins set, which plans each seller hold
 ### `seller_ex_works_states` — ex-works on or off, per state
 - Each change is a new row (`state_id`, `is_on`, when, who, whether an admin). **No row = off.**
 - **`set_ex_works(state, on, seller)`:** a whole state only. Switching on only where his reach touches that state: "Ex-works can be switched on only where you reach. Upgrade to reach more areas." Switching off is always allowed.
+- **Retailers:** a free retailer can't switch it on ("Ex-works rates come with a paid plan. Contact ALEE to upgrade."). A paid retailer can, for his own state only ("As a retailer you can switch ex-works on only in your own state."). If his plan lapses, his saved switch stops applying.
 
 ### `seller_plant_cities` — his plant city
 - Each change is a new row. **No row = his profile location.**
 - **`set_plant_city(place, seller)`.**
 
 ### Both
-- **`ex_works_for(seller, buyer's area)`:** whether ex-works is on in that area's state, and the plant city. Internal, for the rate engine.
+- **`ex_works_for(seller, buyer's area)`:** whether ex-works is on in that area's state (always off for a retailer without a paid reach plan), and the plant city. Internal, for the rate engine.
 - **Who sees:** the seller his own; admins all. Never changed or deleted. An admin can act for a seller, recorded as admin.
 - *(Replaces `seller_ex_works_versions`, a single on/off switch, dropped 2026-11-01 while it held no rows.)*
 - **Checks:** `tests/database/ex_works.sql`.

@@ -160,6 +160,7 @@ final rate = base rate + grade premium + size difference + loading + area differ
 - **Area rate:** the formula above, labelled "[area] rate".
 - **Ex-works rate:** `basic + grade premium + size difference + loading`, with **no area difference**, labelled "Ex-[plant city]". Grade premium, size difference, loading and discount are those at the plant city, so every buyer sees the same figure. The plant city defaults to his profile location; he can change it.
   - **Off by default.** The seller switches it on **per state**, only within his reach. Before switching on he sees a preview of exactly which areas will see it (`ex_works_preview`).
+  - **Retailers:** free retailers don't have ex-works. Paid retailers can switch it on for their own state only, and it shows only inside their paid reach. If the plan lapses, the switch stays saved but stops applying.
   - **What a buyer inside his reach sees:** an area he has set up: that area's rate only, **never ex-works beside it**. An area not set up, ex-works on in that state: "₹54,000 — Ex-Pune". Not set up, ex-works off: "Price on request — send enquiry". An area he excluded: "Doesn't currently supply [area]". Type A territory: pointed to the distributor.
   - **Never outside his reach.**
   - **A missing setting** for the buyer's area doesn't block the ex-works line, as long as the plant city's figures are complete.
@@ -333,7 +334,7 @@ These live in one shared location each, and are used everywhere. Never reimpleme
 - **Loading** — a handling charge added to the rate, in the seller's unit for that product family (per tonne or per kg).
 - **Trade discount** — an upfront discount, flat per the seller's unit for that product family (tonne or kg) or a percentage, shown on the invoice.
 - **Area rate** — the buyer's final rate for his area, labelled "[area] rate" (e.g. "Satara rate"). Never "delivered to".
-- **Ex-works rate** — basic + grade premium + size difference + loading, with no area difference, labelled "Ex-[plant city]". Off by default; switched on per state; shown only in areas he hasn't set up.
+- **Ex-works rate** — basic + grade premium + size difference + loading, with no area difference, labelled "Ex-[plant city]". Off by default; switched on per state; shown only in areas he hasn't set up. Not for free retailers.
 - **Taluka** — the administrative level between district and city; the level area prices are typically set at.
 - **Market close** — the seller's daily closing time; after it, his last rate shows tagged "market closed".
 - **Reach** — where a seller's rates can be seen. Free: a retailer's own taluka, a wholesaler's or distributor's own district, a manufacturer's own state. Paid reach plans extend it.

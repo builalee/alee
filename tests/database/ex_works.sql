@@ -81,11 +81,31 @@ select pg_temp.expect_refused('He cannot read the lookup for another seller',
   $q$select * from ex_works_for('00000000-0000-0000-0000-0000000000a2', (select satara from k))$q$);
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a2');
-select pg_temp.expect_rows('A retailer can switch it on in his state too (it shows only inside his reach)', 1,
+select pg_temp.expect_message('A free retailer does not have ex-works', 'Ex-works rates come with a paid plan. Contact ALEE to upgrade.',
   $q$select set_ex_works((select mh from k), true)$q$);
-select pg_temp.expect_rows('He sees only his own switch, none of W''s', 1, $q$select * from seller_ex_works_states$q$);
+select pg_temp.expect_rows('He sees none of W''s switches', 0, $q$select * from seller_ex_works_states$q$);
 select pg_temp.expect_rows('...nor W''s plant city', 0, $q$select * from seller_plant_cities$q$);
 
+select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
+insert into plans (name, reach_level, extra_states) values ('Check Retail State', 'state', 1);
+create temp table tp as
+select switch_on_plan('00000000-0000-0000-0000-0000000000a2', (select id from plans where name = 'Check Retail State'),
+                      now() - interval '1 day', now() + interval '30 days', array[(select goa from k)]) as id;
+grant select on tp to public;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a2');
+select pg_temp.expect_rows('A paid retailer can switch it on in his own state', 1, $q$select set_ex_works((select mh from k), true)$q$);
+select pg_temp.expect_message('...but not in another state, even one his plan reaches', 'As a retailer you can switch ex-works on only in your own state.',
+  $q$select set_ex_works((select goa from k), true)$q$);
+select pg_temp.as_owner();
+select pg_temp.expect_value('On for him while the plan runs', 'on, plant Satara',
+  $q$select pg_temp.xw('00000000-0000-0000-0000-0000000000a2', (select pune from k))$q$);
+select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
+select end_plan_early((select id from tp));
+select pg_temp.as_owner();
+select pg_temp.expect_value('When his plan lapses, his switch stays saved but stops applying', 'off, plant Satara | saved: on',
+  $q$select pg_temp.xw('00000000-0000-0000-0000-0000000000a2', (select pune from k)) || ' | saved: '
+         || (select case when x.is_on then 'on' else 'off' end from seller_ex_works_states x
+              where x.seller_id = '00000000-0000-0000-0000-0000000000a2' order by x.set_at desc limit 1)$q$);
 select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
 select pg_temp.expect_rows('An admin switches it off for him', 1,
   $q$select set_ex_works((select mh from k), false, '00000000-0000-0000-0000-0000000000a2')$q$);

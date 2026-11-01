@@ -730,7 +730,7 @@ All limits are settings admins can change:
 *(Updates 2.19: "the buyer is not served" now means the buyer sees this message, not that the seller is hidden.)*
 
 ### 12.2 ~~Ex-works rate, off by default~~ Superseded 2026-11-01 by 14.2
-*(Every visibility rule below is replaced by 14.2: ex-works now shows only in areas he has not set up, never beside an area rate, switched on per state within his reach. The formula and the plant city stand.)*
+*(Every visibility rule below is replaced by 14.2: ex-works now shows only in areas he has not set up, never beside an area rate, switched on per state within his reach. The formula, the plant city and the retailer rule (free retailers don't have it; paid retailers only inside their paid reach) stand.)*
 **Decision (2026-10-29):**
 - **What it is:** the rate at the seller's plant or yard, before any area difference:
   `ex-works = basic + grade premium + size difference + loading`
@@ -859,7 +859,11 @@ The same rules for every role:
 
 **How it was built (proposed 2026-11-01):**
 - **Excluded areas:** an area he **excluded** shows "Doesn't currently supply [area]", with no ex-works; he said he doesn't serve it. Only an area he has **never set up** gets ex-works or "Price on request".
-- **Who can switch it on:** any seller, retailers included, can switch ex-works on in a state his reach touches. It shows only to buyers inside his reach. *(This replaces 12.2's "free retailers don't have it", since the new rule bases ex-works on reach alone.)*
+- ~~**Who can switch it on:** any seller, retailers included, can switch ex-works on in a state his reach touches.~~ **Corrected 2026-11-01 by the owner:** the 12.2 rule for retailers stands.
+  - **Free retailers don't have ex-works.**
+  - **Paid retailers** can switch it on, for **their own state** only. It shows only inside the area they paid for.
+  - **If the plan lapses,** the switch stays saved but stops applying.
+  - **Manufacturers, wholesalers and distributors** can switch it on in any state their reach touches.
 - **The plant city** is kept separately from the per-state switches, and defaults to his profile location.
 
 ### 14.3 Wording: no freight or delivery words
