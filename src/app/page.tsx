@@ -34,6 +34,7 @@ export default async function Home() {
                 <Link href="/enquiries" className={secondStyle}>{text.nav.myEnquiries}</Link>
                 {isSeller && <Link href="/seller/publish" className={linkStyle}>{text.nav.publish}</Link>}
                 {isSeller && <Link href="/seller/enquiries" className={secondStyle}>{text.nav.received}</Link>}
+                <Link href="/clients" className={secondStyle}>{text.nav.clientBook}</Link>
                 <Link href="/seller" className={secondStyle}>{text.nav.sellerSetup}</Link>
               </>
             )}

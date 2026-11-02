@@ -11,3 +11,9 @@ export function formatPhone(phone: string): string {
   const digits = phone.replace(/\D/g, "").slice(-10);
   return `+91 ${digits.slice(0, 5)} ${digits.slice(5)}`;
 }
+
+/** Opens the phone's dialer for a stored +91 number. */
+export const callLink = (phone: string): string => `tel:${phone}`;
+
+/** Opens WhatsApp to a stored +91 number. */
+export const whatsappLink = (phone: string): string => `https://wa.me/${phone.replace(/\D/g, "")}`;

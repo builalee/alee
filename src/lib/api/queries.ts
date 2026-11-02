@@ -392,3 +392,55 @@ export async function getTerritory(sellerId: string) {
       .map((s) => ({ id: s.account_id, name: `${s.store_name} (${regionName(s.region_id)})` })),
   };
 }
+
+export type ClientType = "distributor" | "dealer" | "builder" | "retailer";
+export type Client = {
+  id: string; name: string; phone: string | null; region_id: string | null; client_type: ClientType | null; note: string | null;
+};
+
+/** His client book, by name; a search matches name or mobile number. */
+export async function getClients(search?: string): Promise<Client[]> {
+  const supabase = await createClient();
+  const columns = "id, name, phone, region_id, client_type, note";
+  const words = (search ?? "").trim();
+  if (!words) {
+    const { data } = await supabase.from("clients").select(columns).order("name");
+    return (data ?? []) as Client[];
+  }
+  const digits = words.replace(/\D/g, "");
+  const [{ data: byName }, { data: byPhone }] = await Promise.all([
+    supabase.from("clients").select(columns).ilike("name", `%${words.replace(/[\\%_]/g, (c) => `\\${c}`)}%`).order("name"),
+    digits.length >= 3
+      ? supabase.from("clients").select(columns).ilike("phone", `%${digits}%`).order("name")
+      : Promise.resolve({ data: [] }),
+  ]);
+  const found = new Map<string, Client>();
+  for (const c of [...(byName ?? []), ...(byPhone ?? [])] as Client[]) found.set(c.id, c);
+  return [...found.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** One customer, with his waiting follow-ups and his activity, newest first. */
+export async function getClientBook(clientId: string) {
+  const supabase = await createClient();
+  const [{ data: client }, { data: followUps }, { data: activity }] = await Promise.all([
+    supabase.from("clients").select("id, name, phone, region_id, client_type, note").eq("id", clientId).maybeSingle(),
+    supabase.from("follow_ups").select("id, due_on, note").eq("client_id", clientId).eq("status", "pending").order("due_on"),
+    supabase.from("client_activities").select("id, kind, note, created_at").eq("client_id", clientId)
+      .order("created_at", { ascending: false }).limit(50),
+  ]);
+  if (!client) return null;
+  return {
+    client: client as Client,
+    followUps: (followUps ?? []) as { id: string; due_on: string; note: string | null }[],
+    activity: (activity ?? []) as { id: string; kind: "call" | "whatsapp" | "visit"; note: string | null; created_at: string }[],
+  };
+}
+
+/** The "Today" list: follow-ups due today or overdue, worked out in the database. */
+export async function getFollowUpsDue() {
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("follow_ups_due");
+  return (data ?? []) as {
+    id: string; client_id: string; client_name: string; phone: string | null; due_on: string; note: string | null; overdue: boolean;
+  }[];
+}
