@@ -192,7 +192,7 @@ Regular has no rows here, because it covers every family.
   - **What it records:** brand, claimant and time, and status `claimed` → `approved` or `rejected`; `approved` → `ended`. It also records who decided and when, and who ended it and when.
   - **History:** the status only moves forward, and claims are never deleted.
   - **Who sees them:** the claimant and admins.
-- **`claim_brand(brand)`:** a seller claims an approved brand that has no owner. Plain refusals, e.g. "Check Steel already has an owner. If you believe it is yours, contact ALEE."
+- **`claim_brand(brand)`:** a manufacturer ALEE has approved claims an approved brand that has no owner. Plain refusals, e.g. "Check Steel already has an owner. If you believe it is yours, contact ALEE."
 - **`decide_brand_claim(claim, approve)`:** an admin approves, making the claimant the owner, or rejects. A brand that already has an owner must have it ended first.
 - **`end_brand_ownership(brand)`:** an admin ends ownership, for example when a brand is sold.
 - **Checks:** `tests/database/brand_ownership.sql`.
@@ -573,12 +573,15 @@ Each row is followed through to its end.
 
 ### How territory is changed and looked up
 These are the only ways to change an allocation:
-- **`offer_territory(brand, distributor, family, area, type, manufacturer)`:** the brand's owner offers (an admin may offer for him), for a family the brand covers. Refusals are in plain words, e.g. "You don't own Check Rods, so you cannot allocate it." or "Satara Check Steel TMT is already offered to or held by Bala Traders. End that first."
+- **`offer_territory(brand, distributor, family, area, type, manufacturer)`:** the brand's owner offers (an admin may offer for him), for a family the brand covers, to a distributor ALEE has approved. Refusals are in plain words, e.g. "You don't own Check Rods, so you cannot allocate it." or "Satara Check Steel TMT is already offered to or held by Bala Traders. End that first."
 - **`change_territory_type(allocation, type)`:** the manufacturer changes the type, only while it's an offer.
-- **`respond_to_territory(allocation, accept)`:** the distributor accepts or declines.
+- **`respond_to_territory(allocation, accept)`:** the distributor accepts or declines. Only an approved distributor can accept.
 - **`end_territory(allocation)`:** either side ends an active allocation; the manufacturer can withdraw an offer. The manufacturer's own rate then shows again there, if he serves it.
+- **Losing the role (decision 16.9):** when a distributor's approval is removed or refused, his active allocations end and his open offers are withdrawn, recorded as an admin's action. The records stay, and approving him again doesn't bring them back.
 
-**`resolve_territory(brand, family, buyer's area)`** finds the allocation in effect. Only allocations made by the brand's **current** owner count.
+**`appointable_distributors()`** is the appointment list: approved distributors with a seller profile, for a brand owner or an admin. Anyone else gets an empty list.
+
+**`resolve_territory(brand, family, buyer's area)`** finds the allocation in effect. Only allocations made by the brand's **current** owner, and held by a distributor approved **now** (`allocation_holder_approved`), count. One that doesn't count is passed over, so a wider allocation or the manufacturer's own settings decide.
 
 **`territory_effect(seller, brand, family, buyer's area)`** is what the rate engine checks first, for every seller it shows:
 
@@ -615,11 +618,24 @@ Which role each account has, the limits admins set, which plans each seller hold
 
 - **Signing up** as a wholesaler, distributor or manufacturer creates a waiting request automatically. Until an admin approves it, the account **is a retailer**, with a retailer's reach.
 - **Who acted** (`decided_by` here, and the same in every table) is stored as a plain id, never linked to the login, so deleting an account is never blocked by a record that names him.
-- **`approved_role(account)`:** the role an account actually has: the latest approved one, otherwise retailer. Internal (the engines use it); nobody can call it directly.
+- **`approved_role(account)`:** the role an account actually has: the latest approved one not removed since, otherwise retailer. Internal (the engines use it); nobody can call it directly.
+- **`holds_role(account, role)`:** whether an account holds that role now. Internal too, so nobody can look up another person's role.
 - **`request_role(role)`:** asking later. One waiting request at a time.
 - **`decide_role_request(request, approve)`:** admins only.
 - **Who sees:** each person his own requests; admins all. Nobody changes a decision or deletes a request, not even the database owner.
 - **Checks:** `tests/database/roles.sql`.
+
+### `role_removals` — an approved role that ALEE later removed
+| Column | Meaning |
+|---|---|
+| `request_id` | The approval that was removed. One removal per approval. |
+| `reason` | Why. Required. |
+| `removed_by`, `removed_at` | The admin, and when. |
+
+- **The approval itself is never changed;** this record sits beside it. From that moment the account no longer has the role. To have it again he asks again, and an admin decides.
+- **`remove_role(account, role, reason)`:** admins only. No screen yet (decision 16.9).
+- **Who sees:** each person his own removals; admins all. Nobody writes one directly, and nobody changes or deletes one, not even the database owner.
+- **Checks:** `tests/database/roles.sql`, and `tests/database/territory.sql` and `rate_engine.sql` for what a buyer sees afterwards.
 
 ### `settings` — values admins change without a code change
 | Key | Starts at |

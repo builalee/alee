@@ -784,6 +784,7 @@ All limits are settings admins can change:
 
 | Question | Notes |
 |---|---|
+| Distributors asking a manufacturer for an appointment (2026-11-02) | Agreed by the owner as a later feature, not for the demo. Today only the manufacturer offers (2.33 to 2.36), and a distributor adding a brand to his list sends nothing to its manufacturer. Settle how the request would work before building it. |
 | "Also ask these sellers" and competitor comparison (2026-10-29) | Phase 1.1 featured placement suggests other sellers when a buyer compares. CLAUDE.md section 19 excludes "competitor comparison". Before Phase 1.1 is built, settle where the line is: suggestions for a buyer to ask are not the same as showing sellers how competitors price, but the boundary should be written down. |
 | Client book customers and account deletion (2026-10-29) | A retailer's client book holds details of people who may not be on ALEE. Deleting the retailer's account removes them with it; a client-book customer has no account of his own to delete. Take legal advice before launch, alongside the account deletion question below. |
 | Account deletion vs the trade record | Deleting an account currently removes everything, **including his publishes** (nothing else can remove them). Once orders exist, the other party must keep his order history and bills. Likely answer: remove personal details, keep the trade record without the name. Consent proof may also need keeping for a period. Take legal advice before launch. |
@@ -1024,4 +1025,22 @@ These limit the demo only. They change no Phase 1 rule.
 - **The + and − are on grade premium and area difference.** Loading is a charge, so it has no minus.
 - **A saved form's button shows "Saved ✓" and stays inactive until something changes,** because each save of the rates screen writes a new version into history.
 - **A fuller redesign of setup is for after the demo.**
+
+### 16.9 Only approved distributors and manufacturers count
+**Found 2026-11-02:** a manufacturer could appoint a distributor ALEE hadn't approved, and buyers would have been pointed to him. The list offered every seller.
+
+**Decision (2026-11-02, by the owner):**
+- **Only ALEE-approved distributors** appear in the appointment list, can be appointed, or can accept. Only approved manufacturers can claim a brand.
+- **The check also applies at display.** Buyers never see an "Authorised distributor" tag, and are never pointed to a distributor who isn't approved now, even if an appointment exists.
+- **If his approval is removed or refused later,** his appointments stop counting immediately, with the records kept, and the manufacturer's own rate shows again in that area.
+
+**How it was built (proposed 2026-11-02):**
+- **A removal is its own permanent record,** in `role_removals`. A role decision stays final (9.3), so nothing about it is rewritten.
+- **Removing or refusing ends his appointments and withdraws his open offers,** so the area is free for the manufacturer to appoint someone else. Approving him again doesn't bring them back: the manufacturer offers afresh.
+- **Where a nearer appointment no longer counts,** a wider one still in effect decides.
+- **Having the role means holding that role now.** A distributor later approved as something else as well stays a distributor until that role itself is removed.
+- **There is no admin button for removal yet.** It exists in the database and is checked. The screen comes with the fuller admin screens, before launch.
+
+### 16.10 Stage 3: Publish and Send enquiry count once
+**Decision (2026-11-02, by the owner):** Publish and Send enquiry must count once even if tapped twice: one publish, one alert, one enquiry. This is built with Stage 3, in the database as well as on the button, because a slow connection can send the same tap twice.
 
