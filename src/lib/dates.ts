@@ -13,6 +13,12 @@ export const formatDate = (at: string): string =>
   new Date(at).toLocaleDateString("en-GB", { timeZone: IST, day: "2-digit", month: "2-digit", year: "numeric" })
     .replaceAll("/", "-");
 
+/** Today's date in India, as a date input value ("2026-11-02"). */
+export const todayInIndia = (): string => new Date().toLocaleDateString("en-CA", { timeZone: IST });
+
+/** Whether a stored time falls on today's date in India. */
+export const isTodayInIndia = (at: string): boolean => formatDate(at) === formatDate(new Date().toISOString());
+
 /** "9:15 AM" today, "01-11-2026 9:15 AM" on an earlier day. */
 export const formatWhen = (at: string, isToday: boolean): string =>
   isToday ? formatTime(at) : `${formatDate(at)} ${formatTime(at)}`;

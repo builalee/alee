@@ -6,7 +6,7 @@ Every table in the database, what it holds in plain words, who can see and chang
 - **Keep it current:** whenever a table changes, update this page in the same piece of work (see CLAUDE.md, section 5).
 - **Checks:** each area has saved checks in `tests/database/`. Run them with `npm run check:db`.
 
-Last updated: 2026-11-01.
+Last updated: 2026-11-02.
 
 ---
 
@@ -58,6 +58,10 @@ erDiagram
     territory_allocations ||--o{ territory_allocation_events : "every step"
     accounts        ||--o{ enquiries               : "buyer sends"
     seller_profiles ||--o{ enquiries               : "seller or distributor receives"
+    accounts        ||--o{ clients                 : "his client book"
+    clients         ||--o{ follow_ups              : "follow-ups"
+    clients         ||--o{ client_activities       : "calls, WhatsApps, visits"
+    client_activities ||--o{ follow_ups            : "closed by"
     brands          ||--o{ brand_families          : "covers"
     segments        ||--o{ brand_families          : "family"
 ```
@@ -632,6 +636,49 @@ About `resolve_territory`:
 
 ---
 
+## Area: client book
+
+A seller's own private list of his customers, who need not be on ALEE, with follow-ups and a log of calls, WhatsApps and visits (decisions 11.1 and 14.4). **Private to him: no other seller, no visitor and no admin reads any of it,** and none of it feeds any ALEE data (CLAUDE.md section 13).
+
+### `clients` — one per customer in a seller's book
+| Field | Meaning |
+|---|---|
+| `id` | The customer's one fixed ID, used everywhere. Given by the database. |
+| `seller_id` | Whose book he is in. Can never be changed. |
+| `name` | Required, up to 100 letters. |
+| `phone` | Indian mobile in +91 form, if he has one. The same phone can be in a book only once; other sellers may hold the same person in their own books. |
+| `region_id` | His district, if the seller chose one. |
+| `client_type` | distributor, dealer, builder or retailer, if chosen. |
+| `note` | The seller's private note, up to 2,000 letters. |
+
+- **Who can see and change:** only the seller himself reads, adds and edits his customers. Never deleted on its own; removed only with his account.
+- **The customer limit** (`client_book_limit`) is not enforced yet: the demo has no limit (Stage 4 plan). It must be enforced before launch.
+
+### `follow_ups` — a reminder to follow up with a customer
+| Field | Meaning |
+|---|---|
+| `client_id` | The customer (always one of the same seller's). |
+| `due_on` | The day it's due. Set for today or later. |
+| `note` | Optional, up to 1,000 letters. |
+| `status`, `done_at` | Pending, or done and when. |
+| `closed_by` | The call or visit that closed it; empty when closed with "Done". |
+
+- **Only ever closed:** a follow-up moves from pending to done once; nothing else about it ever changes, and it is never deleted.
+
+### `client_activities` — each call, WhatsApp or visit
+`kind` (call, whatsapp, visit), an optional `note`, and when. **Never changed or deleted;** removed only with the seller's account.
+
+### How it works
+- **`add_follow_up(customer, date, note)`**: today or later; refused for another seller's customer ("Customer not found.").
+- **`log_client_activity(customer, kind, note)`**: records the call, WhatsApp or visit. **A call or visit closes that customer's follow-ups due today or overdue;** future ones stay. A WhatsApp only logs. Tapping Call or WhatsApp on a screen logs it automatically. Returns how many it closed.
+- **`close_follow_up(id)`**: "Done" on one follow-up, due or future.
+- After any of these closes a follow-up, the screen asks for the next follow-up date; skipping needs a tap of its own.
+- **`follow_ups_due()`**: the "Today" list, due today or overdue, oldest first, overdue marked. "Today" is the date in India (`india_today()`).
+- **Built to extend:** a later site or counter joins the customer on follow-ups and activities, with exactly one of them set (Phase 2).
+- **Checks:** `tests/database/client_book.sql`.
+
+---
+
 ## Area: roles, settings, plans and reach
 
 Which role each account has, the limits admins set, which plans each seller holds, and so how far his rates reach (docs/decisions.md 9.3, 10, 14.1, 14.4). **No price, plan cost or commission is stored anywhere.**
@@ -830,11 +877,11 @@ For one seller, brand, product family and buyer's area (optionally one grade and
 These appear in CLAUDE.md but have no tables yet. Phase 1 unless marked; phases are in CLAUDE.md section 18:
 
 - screens for role requests, plans, outside-buyer requests, ex-works (with its preview) and factories (the database parts are built)
-- the client book itself (its limit, `client_book_limit`, is built), the gap nudge, and "What you're missing" (built switched off; an admin switches it on per district)
+- enforcing the client book's customer limit (`client_book_limit` is built; the client book itself is built), the gap nudge, and "What you're missing" (built switched off; an admin switches it on per district)
 - emergency switches (hide a rate, pause sign-ups, maintenance banner), with a record of every use
 - the WhatsApp rate card, the seller's weekly chart, alerts that say what changed, the admin "who published today" screen, and language per state
 - logging admin reads of seller data (decision 6.5), with the API layer
-- client book, follow-ups and activity log; nudges and "What you're missing"
+- nudges and "What you're missing"; follow-up reminder alerts on the day; "Add to client book" from a subscriber and "Invite to ALEE"
 - ALEE Assist (enquiry routing and seller opt-in); per-buyer notification delivery records (deleted after 90 days)
 - orders and bills *(Phase 1.1)*; supplier prompt *(Phase 1.1)*; online payments *(Phase 1.1)*
 

@@ -1054,3 +1054,11 @@ These limit the demo only. They change no Phase 1 rule.
 ### 16.10 Stage 3: Publish and Send enquiry count once
 **Decision (2026-11-02, by the owner):** Publish and Send enquiry must count once even if tapped twice: one publish, one alert, one enquiry. This is built with Stage 3, in the database as well as on the button, because a slow connection can send the same tap twice.
 
+### 16.12 How Stage 4 was built (proposed 2026-11-02)
+- **Admins don't read the client book.** It is private to the seller (CLAUDE.md sections 12 and 13), and admin reads aren't logged yet (6.5). If ALEE ever needs to see one, for support or deletion, that is a separate decision.
+- **A WhatsApp tap only logs; a call or visit closes** the customer's due and overdue follow-ups, as 11.1 says. A WhatsApp may get no reply, so it doesn't count as having followed up. "Done" closes one follow-up by hand, and the next-date question follows it too.
+- **Asking for the next date:** after a call, a visit or "Done", ALEE shows the next-follow-up screen. "No next follow-up" is its own button, so skipping is a choice. Later follow-ups are listed there with "Close this too".
+- **One customer per mobile number** in a seller's book, so the same person isn't entered twice. The phone is optional; a customer with none has no Call or WhatsApp button.
+- **Every account has a client book,** since every account can sell (CLAUDE.md section 18).
+- **Follow-ups are set for today or later,** in Indian dates.
+- **Not in the demo:** the customer limit (it must be enforced in the database before launch), reminder alerts on the day, "Add to client book" from a subscriber, "Invite to ALEE", and tags.

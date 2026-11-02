@@ -39,3 +39,10 @@ export function formatRupees(amount: string): string {
   const digits = Math.round(value * 100) % 100 === 0 ? 0 : 2;
   return `₹${value.toLocaleString("en-IN", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
 }
+
+/** A difference with its sign: "+₹500", "−₹200", "₹0". */
+export function formatSignedRupees(amount: string): string {
+  const value = Number(amount);
+  const sign = value > 0 ? "+" : value < 0 ? "−" : "";
+  return `${sign}${formatRupees(String(Math.abs(value)))}`;
+}
