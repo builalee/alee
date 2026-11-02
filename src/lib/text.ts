@@ -43,6 +43,7 @@ export const text = {
     approve: "Approve",
     refuse: "Refuse",
     none: "Nothing here.",
+    districtOf: (name: string, state: string) => `${name} (district, ${state})`,
   },
   roles: {
     retailer: "Retailer / buyer",
@@ -185,6 +186,7 @@ export const text = {
     missing: "Left out until fixed:",
     published: "Published. Buyers now see your new rates.",
     rates: "rates",
+    cannotConfirm: "Fix the problems above before publishing.",
     everywhere: "Everywhere",
     sameAsBase: "same as base",
     diffNotSet: "difference not set",
@@ -236,6 +238,7 @@ export const text = {
     viaProfile: "profile",
     call: "Call",
   },
+  units: { tonne: "tonnes", kg: "kg", piece: "pieces", metre: "metres" },
   clients: {
     title: "Client book",
     private: "Only you see your client book.",

@@ -31,8 +31,8 @@ export default async function SignupPage() {
         <Field label={text.signup.district} htmlFor="regionId">
           <DistrictSelect id="regionId" name="regionId" districts={districts} />
         </Field>
-        <label className="flex items-center gap-2"><input type="checkbox" name="terms" className="size-5" />{text.signup.terms}</label>
-        <label className="flex items-center gap-2"><input type="checkbox" name="privacy" className="size-5" />{text.signup.privacy}</label>
+        <label className="flex min-h-11 items-center gap-2"><input type="checkbox" name="terms" className="size-5" />{text.signup.terms}</label>
+        <label className="flex min-h-11 items-center gap-2"><input type="checkbox" name="privacy" className="size-5" />{text.signup.privacy}</label>
       </ActionForm>
     </Screen>
   );

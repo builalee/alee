@@ -7,7 +7,7 @@ export const inputStyle = "w-full rounded-lg border border-current/30 bg-transpa
 export function Screen({ title, back, children }: { title: string; back?: string; children: ReactNode }) {
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-5 px-4 py-6">
-      {back && <Link href={back} className="underline">{text.common.back}</Link>}
+      {back && <Link href={back} className="self-start py-3 underline">{text.common.back}</Link>}
       <h1 className="text-2xl font-bold">{title}</h1>
       {children}
     </main>
@@ -37,7 +37,7 @@ export function DistrictSelect({ id, name, districts, value }: {
   return (
     <select id={id} name={name} required defaultValue={value ?? ""} className={inputStyle}>
       <option value="" disabled>{text.common.choose}</option>
-      {districts.map((d) => <option key={d.id} value={d.id}>{d.name} (district, {d.stateName})</option>)}
+      {districts.map((d) => <option key={d.id} value={d.id}>{text.common.districtOf(d.name, d.stateName)}</option>)}
     </select>
   );
 }

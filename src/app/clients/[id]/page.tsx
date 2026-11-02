@@ -27,14 +27,15 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
       </p>
       {client.note && <p className="rounded-lg bg-current/5 p-3">{client.note}</p>}
       {client.phone && <ContactButtons clientId={client.id} phone={client.phone} />}
-      <details className="rounded-lg border border-current/20 p-3">
-        <summary className="font-medium">{text.clients.visit}</summary>
+      <details className="rounded-lg border border-current/20 px-3">
+        <summary className="py-3 font-medium">{text.clients.visit}</summary>
         <ActionForm action={logVisit} submit={text.clients.visit}>
           <input type="hidden" name="clientId" value={client.id} />
           <Field label={text.clients.visitNote} htmlFor="visitNote">
             <textarea id="visitNote" name="note" rows={2} maxLength={1000} className={inputStyle} />
           </Field>
         </ActionForm>
+        <div className="h-3" />
       </details>
 
       <Card>
@@ -42,7 +43,7 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         {followUps.length === 0 && <p>{text.clients.noFollowUps}</p>}
         {followUps.map((f) => <FollowUpCard key={f.id} followUp={{ ...f, client_id: client.id }} />)}
         <details>
-          <summary className="font-medium">{text.clients.addFollowUp}</summary>
+          <summary className="py-3 font-medium">{text.clients.addFollowUp}</summary>
           <ActionForm action={addFollowUp} submit={text.clients.saveFollowUp}>
             <input type="hidden" name="clientId" value={client.id} />
             <Field label={text.clients.date} htmlFor="dueOn">
@@ -68,11 +69,12 @@ export default async function ClientPage({ params }: { params: Promise<{ id: str
         </ul>
       </Card>
 
-      <details className="rounded-lg border border-current/20 p-3">
-        <summary className="font-medium">{text.clients.edit}</summary>
+      <details className="rounded-lg border border-current/20 px-3">
+        <summary className="py-3 font-medium">{text.clients.edit}</summary>
         <ActionForm action={saveClient} submit={text.clients.save} startSaved>
           <ClientFields client={client} districts={districts} />
         </ActionForm>
+        <div className="h-3" />
       </details>
     </Screen>
   );

@@ -21,11 +21,11 @@ export default async function ProfilePage() {
         </Field>
         <fieldset className="flex flex-col gap-2">
           <legend className="font-medium">{text.profile.visibility}</legend>
-          <label className="flex items-center gap-2">
+          <label className="flex min-h-11 items-center gap-2">
             <input type="radio" name="visibility" value="public" className="size-5" defaultChecked={profile?.is_public !== false} />
             {text.profile.public}
           </label>
-          <label className="flex items-center gap-2">
+          <label className="flex min-h-11 items-center gap-2">
             <input type="radio" name="visibility" value="private" className="size-5" defaultChecked={profile?.is_public === false} />
             {text.profile.private}
           </label>

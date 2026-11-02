@@ -1062,3 +1062,8 @@ These limit the demo only. They change no Phase 1 rule.
 - **Every account has a client book,** since every account can sell (CLAUDE.md section 18).
 - **Follow-ups are set for today or later,** in Indian dates.
 - **Not in the demo:** the customer limit (it must be enforced in the database before launch), reminder alerts on the day, "Add to client book" from a subscriber, "Invite to ALEE", and tags.
+
+### 16.13 Stage 5: phone-size review (2026-11-02)
+Every screen was reviewed for a 360px phone by reading the code. A logged-in run on a real phone is still for the owner. Fixed: the confirmation screen could fail silently and still allow Confirm (now it says so, and Confirm stays off); folded sections, Back, setup links, tick boxes, yes/no buttons and "Remove" were too small to tap; the seller's Call button for a buyer is now full width with the number written properly; the quantity unit and the "(district, state)" label now come from the text file; a seller profile with no rates now says so.
+
+**Left for the Marathi work (not the demo):** sentences built by joining words in code (for example "Move every rate by +₹300?") must become whole sentences in the text file, so Marathi word order works; the page language is still set to English.

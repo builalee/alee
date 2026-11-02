@@ -66,7 +66,7 @@ export function RateCard({ rates, showSeller }: { rates: SellerRates; showSeller
       {messages.map((m) => <p key={m}>{m}</p>)}
 
       <Link href={`/sellers/${rates.sellerId}/enquiry?brand=${rates.brandId}`}
-        className="rounded-lg border border-current/40 px-3 py-2 text-center font-medium">
+        className="rounded-lg border border-current/40 px-3 py-3 text-center font-medium">
         {text.buyer.sendEnquiry}
       </Link>
     </Card>

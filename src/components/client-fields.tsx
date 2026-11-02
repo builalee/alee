@@ -22,7 +22,7 @@ export function ClientFields({ client, districts }: {
       <Field label={text.clients.area} htmlFor="regionId">
         <select id="regionId" name="regionId" defaultValue={client?.region_id ?? ""} className={inputStyle}>
           <option value="">{text.common.choose}</option>
-          {districts.map((d) => <option key={d.id} value={d.id}>{d.name} (district, {d.stateName})</option>)}
+          {districts.map((d) => <option key={d.id} value={d.id}>{text.common.districtOf(d.name, d.stateName)}</option>)}
         </select>
       </Field>
       <Field label={text.clients.type} htmlFor="type">

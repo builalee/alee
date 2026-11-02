@@ -15,7 +15,7 @@ type Line = {
 
 const signStyle = (on: boolean) =>
   `w-12 shrink-0 rounded-lg border border-current/30 text-xl font-semibold ${on ? "bg-foreground text-background" : ""}`;
-const buttonStyle = "rounded-lg border border-current/40 px-3 py-2 font-medium";
+const buttonStyle = "rounded-lg border border-current/40 px-3 py-3 font-medium";
 
 /**
  * Today's basic rate for each brand line, yesterday's filled in. "Move every
@@ -83,8 +83,8 @@ export function PublishForm({ lines, publishedToday }: { lines: Line[]; publishe
         <section className="flex flex-col gap-2 rounded-xl border border-current/20 p-4">
           <label htmlFor="by" className="font-medium">{text.publish.moveAll}</label>
           <div className="flex gap-2">
-            <button type="button" aria-pressed={!isMinus} className={signStyle(!isMinus)} onClick={() => { setIsMinus(false); setAsking(null); }}>+</button>
-            <button type="button" aria-pressed={isMinus} className={signStyle(isMinus)} onClick={() => { setIsMinus(true); setAsking(null); }}>−</button>
+            <button type="button" aria-label={text.rates.plus} aria-pressed={!isMinus} className={signStyle(!isMinus)} onClick={() => { setIsMinus(false); setAsking(null); }}>+</button>
+            <button type="button" aria-label={text.rates.minus} aria-pressed={isMinus} className={signStyle(isMinus)} onClick={() => { setIsMinus(true); setAsking(null); }}>−</button>
             <input id="by" type="text" inputMode="decimal" className={`${inputStyle} min-w-0`} value={by}
               onChange={(e) => { setBy(e.target.value); setAsking(null); }} />
             <button type="button" onClick={askToMove} className={`shrink-0 ${buttonStyle}`}>{text.publish.apply}</button>
@@ -95,7 +95,7 @@ export function PublishForm({ lines, publishedToday }: { lines: Line[]; publishe
               <p id="move-ask" className="font-medium">{text.publish.moveAsk} {formatSignedRupees(asking)}?</p>
               <div className="grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => moveAll(asking)}
-                  className="rounded-lg bg-foreground px-3 py-2 font-semibold text-background">{text.publish.moveYes}</button>
+                  className="rounded-lg bg-foreground px-3 py-3 font-semibold text-background">{text.publish.moveYes}</button>
                 <button type="button" onClick={() => setAsking(null)} className={buttonStyle}>{text.publish.moveCancel}</button>
               </div>
             </div>

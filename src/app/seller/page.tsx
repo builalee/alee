@@ -5,7 +5,7 @@ import { text } from "@/lib/text";
 
 function Step({ href, label, done }: { href: string; label: string; done: boolean }) {
   return (
-    <Link href={href} className="flex items-center justify-between gap-3 border-t border-current/15 pt-3">
+    <Link href={href} className="flex items-center justify-between gap-3 border-t border-current/15 py-3">
       <span className="font-medium underline">{label}</span>
       <span className="shrink-0 text-sm">{done ? text.seller.done : text.seller.todo}</span>
     </Link>
@@ -42,7 +42,7 @@ export default async function SellerPage() {
         <Step href="/seller/profile" label={text.seller.stepProfile} done />
         <Step href="/seller/brand" label={text.seller.stepBrand} done={lines.length > 0} />
         <Step href="/seller/closing" label={text.seller.stepClosing} done={Boolean(profile.market_close_time)} />
-        <Link href="/seller/distributors" className="border-t border-current/15 pt-3 font-medium underline">
+        <Link href="/seller/distributors" className="border-t border-current/15 py-3 font-medium underline">
           {isManufacturer(me) ? text.seller.stepDistributors : text.seller.stepOffers}
         </Link>
       </Card>
