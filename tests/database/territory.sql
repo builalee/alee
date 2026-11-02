@@ -15,11 +15,18 @@
 -- Territory is per brand (decisions 2.43): M owns Check Steel (TMT and
 -- Angles) and allocates it. Check Rods has no owner.
 --
+-- Only approved distributors count (decision 16.9): only they can be appointed
+-- or accept; an appointment held by anyone else is ignored for buyers; removing
+-- or refusing the role ends his appointments, keeps the records, and approving
+-- him again doesn't revive them.
+--
 -- Test people (temporary logins, rolled back):
 --   M  ...a1  manufacturer: TMT and MS Angles; serves all of Maharashtra
 --   D1 ...b2  distributor: TMT; has published his own rates
 --   D2 ...d4  distributor
 --   E  ...e5  buyer (no seller profile)
+--   U  ...f6  signed up as a distributor, not approved (added near the end)
+--   V  ...f7  signed up as a distributor, later refused (added near the end)
 --   C  ...c3  admin
 -- Areas: Satara district > Check Karad (taluka) > Check Karad City (city);
 --        Check Satara City (city directly in Satara district).
@@ -67,6 +74,7 @@ insert into regions (name, level, parent_id, is_approved)
 select 'Check Unapproved', 'city', id, false from regions where level = 'district' and name = 'Satara';
 
 -- M owns Check Steel, claimed and approved the normal way.
+select pg_temp.approve_test_roles();
 insert into brands (name, status) values ('Check Steel', 'approved'), ('Check Rods', 'approved');
 insert into brand_families (brand_id, segment_id)
 select b.id, s.id from brands b, segments s
@@ -451,3 +459,116 @@ select pg_temp.expect_value('...and D2''s Check Steel rate is no longer hidden i
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select pg_temp.expect_message('...and M can no longer allocate it', 'You don''t own Check Steel, so you cannot allocate it.',
   $q$select offer_territory((select steel from k), '00000000-0000-0000-0000-0000000000b2', (select tmt from k), (select mh from k), 'distributor_prices')$q$);
+
+-- Only approved distributors count ------------------------------------------------------
+
+select pg_temp.as_owner();
+insert into auth.users (id, phone, aud, role) values
+  ('00000000-0000-0000-0000-0000000000f6', '919800000016', 'authenticated', 'authenticated'),
+  ('00000000-0000-0000-0000-0000000000f7', '919800000017', 'authenticated', 'authenticated');
+insert into accounts (id, full_name, phone, signup_role, region_id)
+select x.id::uuid, x.name, x.phone, 'distributor', (select satara from k)
+  from (values ('00000000-0000-0000-0000-0000000000f6', 'Uday', '+919800000016'),
+               ('00000000-0000-0000-0000-0000000000f7', 'Vijay', '+919800000017')) as x (id, name, phone);
+insert into seller_profiles (account_id, store_name, region_id, is_public, market_close_time)
+select x.id::uuid, x.store, (select satara from k), true, '18:00'
+  from (values ('00000000-0000-0000-0000-0000000000f6', 'Uday Traders'),
+               ('00000000-0000-0000-0000-0000000000f7', 'Vijay Traders')) as x (id, store);
+
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select claim_brand((select rods from k));
+select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
+select decide_brand_claim(id, true) from brand_claims where brand_id = (select rods from k);
+
+-- Only the test people, because alee-dev also holds real distributors.
+create function pg_temp.appointable() returns text language sql as $$
+  select coalesce(string_agg(store_name, ', ' order by store_name), 'nobody') from appointable_distributors()
+   where account_id::text like '00000000-0000-0000-0000-%'
+$$;
+
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select pg_temp.expect_message('A seller ALEE has not approved cannot be appointed', 'ALEE has not approved this seller as a distributor.',
+  $q$select offer_territory((select rods from k), '00000000-0000-0000-0000-0000000000f6', (select tmt from k), (select pune from k), 'distributor_prices')$q$);
+select pg_temp.expect_value('The appointment list shows approved distributors only', 'Bala Traders, Dev Distributors',
+  $q$select pg_temp.appointable()$q$);
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000b2');
+select pg_temp.expect_value('Someone who owns no brand gets no list', 'nobody', $q$select pg_temp.appointable()$q$);
+select pg_temp.as_visitor();
+select pg_temp.expect_refused('Visitors cannot read the list', $q$select * from appointable_distributors()$q$);
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000e5');
+select pg_temp.expect_refused('Nobody can look up a person''s role through holds_role',
+  $q$select holds_role('00000000-0000-0000-0000-0000000000f6', 'distributor')$q$);
+
+-- Appointments that exist although he isn't approved, as one could before this rule.
+select pg_temp.as_owner();
+insert into territory_allocations (manufacturer_id, distributor_id, brand_id, segment_id, region_id, allocation_type, status, accepted_at)
+select '00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000f6', (select rods from k), (select tmt from k), x.region, x.kind::territory_type, 'active', now()
+  from (values ((select pune from k), 'distributor_prices'), ((select satara from k), 'manufacturer_prices')) as x (region, kind);
+insert into territory_allocations (manufacturer_id, distributor_id, brand_id, segment_id, region_id, allocation_type)
+values ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000f6', (select rods from k), (select tmt from k), (select mh from k), 'distributor_prices');
+
+select pg_temp.as_visitor();
+select pg_temp.expect_value('Not approved, Type A: the buyer is not pointed to him', 'none',
+  $q$select pg_temp.effect('00000000-0000-0000-0000-0000000000a1', (select rods from k), (select pune from k))$q$);
+select pg_temp.expect_value('Not approved, Type B: no Authorised distributor tag', 'none',
+  $q$select pg_temp.effect('00000000-0000-0000-0000-0000000000a1', (select rods from k), (select satara from k))$q$);
+select pg_temp.expect_rows('Not approved: the lookup finds no appointment', 0,
+  $q$select * from resolve_territory((select rods from k), (select tmt from k), (select pune from k))$q$);
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000f6');
+select pg_temp.expect_message('Not approved: he cannot accept an offer', 'ALEE must approve you as a distributor before you can accept.',
+  $q$select respond_to_territory((select id from territory_allocations where distributor_id = '00000000-0000-0000-0000-0000000000f6' and status = 'offered'), true)$q$);
+
+select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
+select decide_role_request(id, true) from role_requests where account_id = '00000000-0000-0000-0000-0000000000f6';
+select pg_temp.as_visitor();
+select pg_temp.expect_value('Once approved, Type A counts', 'pointed_to_distributor (Uday Traders for Pune)',
+  $q$select pg_temp.effect('00000000-0000-0000-0000-0000000000a1', (select rods from k), (select pune from k))$q$);
+select pg_temp.expect_value('Once approved, Type B counts', 'shown_with_tag (Uday Traders for Satara)',
+  $q$select pg_temp.effect('00000000-0000-0000-0000-0000000000a1', (select rods from k), (select satara from k))$q$);
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select pg_temp.expect_value('...and he joins the appointment list', 'Bala Traders, Dev Distributors, Uday Traders',
+  $q$select pg_temp.appointable()$q$);
+
+-- Approval removed.
+select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
+select remove_role('00000000-0000-0000-0000-0000000000f6', 'distributor', 'Check: no longer a distributor');
+select pg_temp.as_visitor();
+select pg_temp.expect_value('Approval removed: Type A stops at once', 'none',
+  $q$select pg_temp.effect('00000000-0000-0000-0000-0000000000a1', (select rods from k), (select pune from k))$q$);
+select pg_temp.expect_value('Approval removed: Type B tag goes at once', 'none',
+  $q$select pg_temp.effect('00000000-0000-0000-0000-0000000000a1', (select rods from k), (select satara from k))$q$);
+select pg_temp.as_owner();
+select pg_temp.expect_value('His appointments end, his open offer is withdrawn, and all three records stay', 'ended, ended, withdrawn',
+  $q$select string_agg(status::text, ', ' order by status::text) from territory_allocations
+      where distributor_id = '00000000-0000-0000-0000-0000000000f6'$q$);
+select pg_temp.expect_value('Each step is in the history, as an admin''s', '3',
+  $q$select count(*)::text from territory_allocation_events e join territory_allocations a on a.id = e.allocation_id
+      where a.distributor_id = '00000000-0000-0000-0000-0000000000f6' and e.event in ('ended', 'withdrawn') and e.by_admin$q$);
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select pg_temp.expect_value('He leaves the appointment list', 'Bala Traders, Dev Distributors', $q$select pg_temp.appointable()$q$);
+select pg_temp.expect_value('The area is free: M can appoint someone else',
+  'offered', $q$select case when offer_territory((select rods from k), '00000000-0000-0000-0000-0000000000b2', (select tmt from k), (select satara from k), 'distributor_prices') is not null then 'offered' end$q$);
+
+-- Approved again: his old appointments stay finished.
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000f6');
+select request_role('distributor');
+select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
+select decide_role_request(id, true) from role_requests where account_id = '00000000-0000-0000-0000-0000000000f6' and status = 'requested';
+select pg_temp.as_visitor();
+select pg_temp.expect_value('Approved again: his old appointment does not come back', 'none',
+  $q$select pg_temp.effect('00000000-0000-0000-0000-0000000000a1', (select rods from k), (select pune from k))$q$);
+
+-- A closer appointment that doesn't count leaves the wider one in effect; refusal ends it.
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000b2');
+select respond_to_territory((select id from territory_allocations where distributor_id = '00000000-0000-0000-0000-0000000000b2' and brand_id = (select rods from k)), true);
+select pg_temp.as_owner();
+insert into territory_allocations (manufacturer_id, distributor_id, brand_id, segment_id, region_id, allocation_type, status, accepted_at)
+values ('00000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000f7', (select rods from k), (select tmt from k), (select karad from k), 'distributor_prices', 'active', now());
+select pg_temp.as_visitor();
+select pg_temp.expect_value('Closer appointment not approved: the wider, approved one decides', 'pointed_to_distributor (Bala Traders for Satara)',
+  $q$select pg_temp.effect('00000000-0000-0000-0000-0000000000a1', (select rods from k), (select karad from k))$q$);
+select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
+select decide_role_request(id, false) from role_requests where account_id = '00000000-0000-0000-0000-0000000000f7';
+select pg_temp.as_owner();
+select pg_temp.expect_value('Approval refused: his appointment ends, and the record stays', 'ended',
+  $q$select status::text from territory_allocations where distributor_id = '00000000-0000-0000-0000-0000000000f7'$q$);

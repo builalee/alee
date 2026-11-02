@@ -82,3 +82,48 @@ select pg_temp.expect_refused('Not even the database owner can change a decision
   $q$update role_requests set status = 'refused' where account_id = '00000000-0000-0000-0000-0000000000a1'$q$);
 select pg_temp.expect_refused('Not even the database owner can delete a request',
   $q$delete from role_requests where account_id = '00000000-0000-0000-0000-0000000000a1'$q$);
+
+-- Removing a role ----------------------------------------------------------------------
+
+select pg_temp.expect_value('Row Level Security is on for removals', 'true',
+  $q$select relrowsecurity::text from pg_class where oid = 'public.role_removals'::regclass$q$);
+
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a2');
+select pg_temp.expect_message('An ordinary person cannot remove a role', 'Only ALEE can remove a role.',
+  $q$select remove_role('00000000-0000-0000-0000-0000000000a1', 'distributor', 'Check')$q$);
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select pg_temp.expect_refused('Nobody can write a removal directly',
+  $q$insert into role_removals (request_id, reason, removed_by)
+     select id, 'Check', '00000000-0000-0000-0000-0000000000a1' from role_requests where account_id = '00000000-0000-0000-0000-0000000000a1'$q$);
+select pg_temp.as_visitor();
+select pg_temp.expect_refused('Visitors cannot read removals', $q$select * from role_removals$q$);
+
+select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
+select pg_temp.expect_message('An admin must say why', 'Say why the role is being removed.',
+  $q$select remove_role('00000000-0000-0000-0000-0000000000a1', 'distributor', '  ')$q$);
+select pg_temp.expect_message('A role he doesn''t have cannot be removed', 'This account doesn''t have that role.',
+  $q$select remove_role('00000000-0000-0000-0000-0000000000a2', 'distributor', 'Check')$q$);
+select pg_temp.expect_rows('An admin removes the distributor', 1,
+  $q$select remove_role('00000000-0000-0000-0000-0000000000a1', 'distributor', 'Check reason')$q$);
+select pg_temp.as_owner();
+select pg_temp.expect_value('Removed: he is a retailer again', 'retailer',
+  $q$select approved_role('00000000-0000-0000-0000-0000000000a1')::text$q$);
+select pg_temp.expect_value('The approval itself stays in history', 'approved',
+  $q$select status::text from role_requests where account_id = '00000000-0000-0000-0000-0000000000a1'$q$);
+
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select pg_temp.expect_rows('He sees the removal of his own role', 1, $q$select * from role_removals$q$);
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a2');
+select pg_temp.expect_rows('Another person doesn''t', 0, $q$select * from role_removals$q$);
+
+select pg_temp.as_owner();
+select pg_temp.expect_refused('Not even the database owner can change a removal', $q$update role_removals set reason = 'Changed'$q$);
+select pg_temp.expect_refused('Not even the database owner can delete a removal', $q$delete from role_removals$q$);
+
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select pg_temp.expect_rows('He can ask for the role again', 1, $q$select request_role('distributor')$q$);
+select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
+select decide_role_request(id, true) from role_requests where account_id = '00000000-0000-0000-0000-0000000000a1' and status = 'requested';
+select pg_temp.as_owner();
+select pg_temp.expect_value('Approved again, he has it again', 'distributor',
+  $q$select approved_role('00000000-0000-0000-0000-0000000000a1')::text$q$);

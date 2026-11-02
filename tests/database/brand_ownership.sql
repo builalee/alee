@@ -34,6 +34,7 @@ select x.id::uuid, x.store, r.id, true
  cross join (select id from regions where level = 'district' and name = 'Pune') r;
 
 insert into brands (name, status) values ('Check Steel', 'approved'), ('Check Rods', 'approved'), ('Check Pending', 'requested');
+select pg_temp.approve_test_roles();
 
 create temp table k as
 select (select id from brands where name = 'Check Steel') as steel,
@@ -50,6 +51,28 @@ select pg_temp.expect_value('No brand has an owner to begin with (test brands)',
   $q$select count(*)::text from brands where name like 'Check%' and owner_id is not null$q$);
 
 -- Claiming ------------------------------------------------------------------------
+
+select pg_temp.as_owner();
+insert into auth.users (id, phone, aud, role) values
+  ('00000000-0000-0000-0000-0000000000f6', '919800000006', 'authenticated', 'authenticated'),
+  ('00000000-0000-0000-0000-0000000000f7', '919800000007', 'authenticated', 'authenticated');
+insert into accounts (id, full_name, phone, signup_role, region_id)
+select x.id::uuid, x.name, x.phone, x.role::account_role, (select id from regions where level = 'district' and name = 'Pune')
+  from (values ('00000000-0000-0000-0000-0000000000f6', 'Uday', '+919800000006', 'manufacturer'),
+               ('00000000-0000-0000-0000-0000000000f7', 'Dinesh', '+919800000007', 'distributor')) as x (id, name, phone, role);
+insert into seller_profiles (account_id, store_name, region_id, is_public)
+select x.id::uuid, x.store, (select id from regions where level = 'district' and name = 'Pune'), true
+  from (values ('00000000-0000-0000-0000-0000000000f6', 'Uday Rolling'),
+               ('00000000-0000-0000-0000-0000000000f7', 'Dinesh Traders')) as x (id, store);
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000f6');
+select pg_temp.expect_message('A manufacturer ALEE has not approved cannot claim', 'ALEE must approve you as a manufacturer before you can claim a brand.',
+  $q$select claim_brand((select steel from k))$q$);
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000f7');
+select pg_temp.expect_message('A distributor cannot claim', 'ALEE must approve you as a manufacturer before you can claim a brand.',
+  $q$select claim_brand((select steel from k))$q$);
+select pg_temp.as_owner();
+select pg_temp.expect_value('...and neither refused try left a claim', '0',
+  $q$select count(*)::text from brand_claims where manufacturer_id in ('00000000-0000-0000-0000-0000000000f6', '00000000-0000-0000-0000-0000000000f7')$q$);
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select pg_temp.expect_value('M claims Check Steel', 'claimed',
