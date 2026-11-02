@@ -1042,10 +1042,11 @@ These limit the demo only. They change no Phase 1 rule.
 - **Having the role means holding that role now.** A distributor later approved as something else as well stays a distributor until that role itself is removed.
 - **There is no admin button for removal yet.** It exists in the database and is checked. The screen comes with the fuller admin screens, before launch.
 
-### 16.11 How Stage 3 was built (proposed 2026-11-02)
+### 16.11 How Stage 3 was built (proposed 2026-11-02; enquiry routing decided by the owner 2026-11-02)
 - **A buyer's area is his account's district.** He sees rates for that area only; there's no picking another area in the demo.
 - **"Rates in my area" lists every public seller's brand lines.** Subscribing isn't in the demo (16.1), so there's no feed of chosen sellers yet.
-- **Enquiries go to the seller, except in a Type B area,** where they go to the authorised distributor (2.36). **In a Type A area** the buyer is already pointed to the distributor; an enquiry sent from the manufacturer's own profile there still goes to the manufacturer. This is open for the owner to confirm.
+- ~~**Enquiries go to the seller, except in a Type B area,** where they go to the authorised distributor (2.36). **In a Type A area** the buyer is already pointed to the distributor; an enquiry sent from the manufacturer's own profile there still goes to the manufacturer. This is open for the owner to confirm.~~ *Superseded 2026-11-02 by the owner's decision below.*
+- **Decision (2026-11-02, by the owner): enquiries go to the seller, except in a Type A or Type B area,** where they go to the appointed distributor. In a Type A district the distributor sets the price, so an enquiry sent from the manufacturer's profile there goes to him, marked "via [manufacturer] profile". The enquiry still records which profile it was sent from. Built in migration `20261102120000_type_a_enquiries_to_distributor`, with checks in `tests/database/enquiries.sql`.
 - **"Received after close"** follows the market of the brand line the buyer enquired about.
 - **Publishing always sends the exact rates shown on the confirmation screen.** "Move every rate" only fills the boxes, so what he checks is what goes out.
 - **Quoting, declining and forwarding enquiries** are not in the demo.

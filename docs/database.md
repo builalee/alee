@@ -614,7 +614,7 @@ About `resolve_territory`:
 |---|---|
 | `buyer_id` | Who sent it. |
 | `seller_id` | Whose rate or profile he enquired from. |
-| `recipient_id` | Who receives it: the seller, or the authorised distributor when the buyer's area is a Type B area for that brand. |
+| `recipient_id` | Who receives it: the seller, or the appointed distributor when the buyer's area is a Type A or Type B area for that brand (decision 16.11). The distributor sees it marked "via [seller] profile". |
 | `brand_id`, `segment_id` | The brand line. |
 | `region_id` | The buyer's area when he sent it. |
 | `product_id`, `size_id` | Grade and size, if he named them. |

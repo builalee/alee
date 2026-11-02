@@ -27,7 +27,7 @@ export default async function ReceivedEnquiriesPage() {
           ) : (
             <p>{text.enquiry.hiddenBuyer} · {e.buyer_recent} {text.enquiry.recent}</p>
           )}
-          {e.via_seller && <p className="text-sm">{text.enquiry.via} {e.via_seller}</p>}
+          {e.via_seller && <p className="text-sm">{text.enquiry.via} {e.via_seller} {text.enquiry.viaProfile}</p>}
           {e.received_after_close && <p className="font-medium">{text.enquiry.afterClose}</p>}
         </Card>
       ))}

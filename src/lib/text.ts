@@ -219,7 +219,8 @@ export const text = {
     fromArea: "From",
     hiddenBuyer: "Name hidden",
     recent: "enquiries in the last 30 days",
-    via: "From the rate of",
+    via: "Via",
+    viaProfile: "profile",
     call: "Call",
   },
   territory: {

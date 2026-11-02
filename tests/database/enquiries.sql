@@ -2,16 +2,19 @@
 -- Checks: enquiries (enquiries, send_enquiry, received_enquiries).
 -- Covers: only a logged-in buyer sends, as himself, from his own area; the
 -- same tap twice makes one enquiry; a Type B area's enquiry goes to the
--- authorised distributor; one sent after the market closed is marked; a
+-- authorised distributor, and so does a Type A area's (decision 16.11),
+-- marked with the manufacturer it came via; one sent after the market closed is marked; a
 -- hidden name stays hidden from the seller, who sees area, buyer type and
 -- recent activity instead; nobody reads another person's enquiries; nothing
 -- is changed or deleted.
 --
 -- Test people (temporary logins, rolled back):
 --   M ...a1  manufacturer in Pune, owns Check Steel, also sells Regular
---   D ...b2  distributor in Satara: Satara for Check Steel, Type B
+--   D ...b2  distributor in Satara: Satara for Check Steel, Type B;
+--            Kolhapur for Check Steel, Type A
 --   E ...e5  buyer in Satara, hides his name
 --   F ...f6  buyer in Pune, shows his name
+--   H ...d4  buyer in Kolhapur, shows his name
 --   C ...c3  admin
 -- ============================================================
 
@@ -20,6 +23,7 @@ insert into auth.users (id, phone, aud, role) values
   ('00000000-0000-0000-0000-0000000000b2', '919800000002', 'authenticated', 'authenticated'),
   ('00000000-0000-0000-0000-0000000000e5', '919800000005', 'authenticated', 'authenticated'),
   ('00000000-0000-0000-0000-0000000000f6', '919800000006', 'authenticated', 'authenticated'),
+  ('00000000-0000-0000-0000-0000000000d4', '919800000004', 'authenticated', 'authenticated'),
   ('00000000-0000-0000-0000-0000000000c3', '919800000003', 'authenticated', 'authenticated');
 
 insert into accounts (id, full_name, firm_name, phone, signup_role, region_id)
@@ -28,7 +32,8 @@ select x.id::uuid, x.name, x.firm, x.phone, x.role::account_role,
   from (values ('00000000-0000-0000-0000-0000000000a1', 'Mohan', null, '+919800000001', 'manufacturer', 'Pune'),
                ('00000000-0000-0000-0000-0000000000b2', 'Bala', null, '+919800000002', 'distributor', 'Satara'),
                ('00000000-0000-0000-0000-0000000000e5', 'Esha', null, '+919800000005', 'retailer', 'Satara'),
-               ('00000000-0000-0000-0000-0000000000f6', 'Farhan', 'Farhan Hardware', '+919800000006', 'retailer', 'Pune'))
+               ('00000000-0000-0000-0000-0000000000f6', 'Farhan', 'Farhan Hardware', '+919800000006', 'retailer', 'Pune'),
+               ('00000000-0000-0000-0000-0000000000d4', 'Harish', null, '+919800000004', 'retailer', 'Kolhapur'))
        as x (id, name, firm, phone, role, district);
 
 insert into seller_profiles (account_id, store_name, region_id, is_public, market_close_time)
@@ -53,11 +58,12 @@ select (select id from segments where name = 'TMT Bars') as tmt,
        (select id from brands where name = 'Check Steel') as steel,
        (select id from brands where is_regular) as regular,
        (select id from regions where level = 'district' and name = 'Satara') as satara,
+       (select id from regions where level = 'district' and name = 'Kolhapur') as kolhapur,
        (select id from products p where p.segment_id = (select id from segments where name = 'TMT Bars') order by p.name limit 1) as grade,
        (select id from sizes z where z.segment_id = (select id from segments where name = 'MS Angles') limit 1) as angle_size;
 grant select on k to public;
 
--- M owns Check Steel and appoints D for Satara, Type B.
+-- M owns Check Steel and appoints D for Satara, Type B, and Kolhapur, Type A.
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 insert into seller_brands (seller_id, brand_id, segment_id)
 values ('00000000-0000-0000-0000-0000000000a1', (select steel from k), (select tmt from k));
@@ -66,6 +72,7 @@ select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
 select decide_brand_claim(id, true) from brand_claims where brand_id = (select steel from k);
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select offer_territory((select steel from k), '00000000-0000-0000-0000-0000000000b2', (select tmt from k), (select satara from k), 'manufacturer_prices');
+select offer_territory((select steel from k), '00000000-0000-0000-0000-0000000000b2', (select tmt from k), (select kolhapur from k), 'distributor_prices');
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000b2');
 select respond_to_territory(id, true) from territory_allocations where distributor_id = '00000000-0000-0000-0000-0000000000b2';
 
@@ -132,6 +139,18 @@ select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select pg_temp.expect_message('A seller cannot send an enquiry to himself', 'You cannot send an enquiry to yourself.',
   $q$select send_enquiry('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k), gen_random_uuid())$q$);
 
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000d4');
+select send_enquiry('00000000-0000-0000-0000-0000000000a1', (select steel from k), (select tmt from k),
+                    '00000000-0000-0000-0000-00000000d001', null, null, 10, 'tonne', 'Kolhapur rate?', true);
+select pg_temp.as_owner();
+select pg_temp.expect_value('Type A area (Kolhapur): sent from M''s profile, it goes to the appointed distributor', 'Bala Traders, Kolhapur',
+  $q$select sp.store_name || ', ' || r.name from enquiries e
+       join seller_profiles sp on sp.account_id = e.recipient_id join regions r on r.id = e.region_id
+      where e.buyer_id = '00000000-0000-0000-0000-0000000000d4'$q$);
+select pg_temp.expect_value('...still recorded as sent from M''s profile', 'Mohan Steel Mills',
+  $q$select sp.store_name from enquiries e join seller_profiles sp on sp.account_id = e.seller_id
+      where e.buyer_id = '00000000-0000-0000-0000-0000000000d4'$q$);
+
 -- Who sees what ------------------------------------------------------------------
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000b2');
@@ -139,10 +158,14 @@ select pg_temp.expect_value('The distributor sees the enquiry, but not the hidde
   'Satara | Mohan Steel Mills | no name | no phone | retailer | 1 | 25 tonne | Need by Friday | false',
   $q$select concat_ws(' | ', area_name, via_seller, coalesce(buyer_name, 'no name'), coalesce(buyer_phone, 'no phone'),
                       buyer_type, buyer_recent, trim_scale(quantity) || ' ' || quantity_unit, note, received_after_close::text)
-       from received_enquiries()$q$);
+       from received_enquiries() where area_name = 'Satara'$q$);
+select pg_temp.expect_value('The distributor sees the Type A enquiry, marked as via M''s profile, with the name shown',
+  'Kolhapur | Mohan Steel Mills | Harish | +919800000004',
+  $q$select concat_ws(' | ', area_name, via_seller, buyer_name, buyer_phone) from received_enquiries() where area_name = 'Kolhapur'$q$);
 select pg_temp.expect_rows('...and cannot read it, or the buyer, from the table', 0, $q$select * from enquiries$q$);
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select pg_temp.expect_rows('M doesn''t receive the Type A or Type B enquiries', 1, $q$select * from received_enquiries()$q$);
 select pg_temp.expect_value('M sees only the one sent to him, with the name the buyer chose to show',
   'Pune | Farhan Hardware (Farhan) | +919800000006 | true',
   $q$select concat_ws(' | ', area_name, buyer_name, buyer_phone, received_after_close::text) from received_enquiries()$q$);
