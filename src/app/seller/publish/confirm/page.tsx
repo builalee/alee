@@ -5,7 +5,7 @@ import { ActionForm } from "@/components/action-form";
 import { Card, Screen } from "@/components/ui";
 import { getFamily, getPublishLines, getPublishPreview, requireAccount } from "@/lib/api/queries";
 import { publishToday } from "@/lib/api/trade";
-import { formatRupees, readAmount } from "@/lib/money";
+import { formatRupees, formatSignedRupees, readAmount } from "@/lib/money";
 import { text } from "@/lib/text";
 
 /**
@@ -51,11 +51,17 @@ export default async function ConfirmPage({ searchParams }: { searchParams: Prom
                 <ul className="list-disc pl-5">{missing.map((m) => <li key={m}>{m}</li>)}</ul>
               </div>
             )}
-            {areas.map((area, n) => {
+            {areas.map((area) => {
               const rows = preview.lines.filter((l) => (l.area_name ?? "") === area);
+              // Each place shows its difference, so the overview needs no opening.
+              const difference = rows.find((r) => r.area_difference !== null)?.area_difference ?? null;
+              const differenceText = difference === null ? text.publish.diffNotSet
+                : Number(difference) === 0 ? text.publish.sameAsBase : formatSignedRupees(String(difference));
               return (
-                <details key={area} open={n === 0} className="border-t border-current/15 pt-2">
-                  <summary className="font-medium">{area} ({rows.length} {text.publish.rates})</summary>
+                <details key={area} className="border-t border-current/15 pt-2">
+                  <summary className="font-medium">
+                    {area || text.publish.everywhere} · {differenceText} · {rows.length} {text.publish.rates}
+                  </summary>
                   <table className="w-full text-left">
                     <tbody>
                       {rows.map((r, j) => (

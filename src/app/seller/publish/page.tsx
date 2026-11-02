@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { PublishForm } from "@/components/publish-form";
 import { Screen } from "@/components/ui";
 import { getFamily, getProfile, getPublishLines, requireAccount } from "@/lib/api/queries";
+import { isTodayInIndia } from "@/lib/dates";
 import { text } from "@/lib/text";
 
 export default async function PublishPage({ searchParams }: { searchParams: Promise<{ published?: string }> }) {
@@ -11,6 +12,10 @@ export default async function PublishPage({ searchParams }: { searchParams: Prom
   const [profile, family] = await Promise.all([getProfile(me.id), getFamily()]);
   if (!profile || !family) redirect("/seller");
   const lines = await getPublishLines(family.id);
+  // Every line he quotes already went out today: the boxes start locked.
+  const quoting = lines.filter((l) => l.move_status !== "not_quoting");
+  const publishedToday = quoting.length > 0
+    && quoting.every((l) => l.move_status === "move" && l.last_published_at && isTodayInIndia(l.last_published_at));
 
   return (
     <Screen title={text.nav.publish} back="/">
@@ -19,8 +24,8 @@ export default async function PublishPage({ searchParams }: { searchParams: Prom
         <p>{text.publish.nothing} <Link href="/seller" className="underline">{text.nav.sellerSetup}</Link></p>
       ) : (
         <>
-          <p>{text.publish.intro}</p>
-          <PublishForm lines={lines} />
+          {!publishedToday && <p>{text.publish.intro}</p>}
+          <PublishForm lines={lines} publishedToday={publishedToday} />
         </>
       )}
     </Screen>

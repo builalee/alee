@@ -313,6 +313,7 @@ export async function getPublishPreview(brandId: string, familyId: string, baseR
     lines: (data ?? []) as {
       area_name: string | null; grade: string | null; size: string | null; status: string; message: string | null;
       area_rate_text: string | null; area_discount_text: string | null; missing: string[] | null;
+      area_difference: number | string | null;
     }[],
   };
 }
