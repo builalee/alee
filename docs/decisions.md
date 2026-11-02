@@ -784,6 +784,7 @@ All limits are settings admins can change:
 
 | Question | Notes |
 |---|---|
+| Dealer rate and godown rate for distributors (2026-11-02) | **The owner's direction, for after the demo:** a distributor can have two rates per appointed brand. A **dealer rate** is seen only by buyers he marks as dealers; a **godown rate** is seen by everyone else. Each can be ex-factory, ex-godown or an area rate. **Before building, settle two conflicts with CLAUDE.md:** (1) section 19 lists "separate retail and bulk pricing" as out of scope, and two rates by buyer type is close to that; (2) section 8 allows only "[area] rate" or "Ex-[plant city]" as labels, so "ex-factory" and "ex-godown" need the wording rule updated. Also settle how a buyer is marked a dealer, and whether he is told. |
 | Distributors asking a manufacturer for an appointment (2026-11-02) | Agreed by the owner as a later feature, not for the demo. Today only the manufacturer offers (2.33 to 2.36), and a distributor adding a brand to his list sends nothing to its manufacturer. Settle how the request would work before building it. |
 | "Also ask these sellers" and competitor comparison (2026-10-29) | Phase 1.1 featured placement suggests other sellers when a buyer compares. CLAUDE.md section 19 excludes "competitor comparison". Before Phase 1.1 is built, settle where the line is: suggestions for a buyer to ask are not the same as showing sellers how competitors price, but the boundary should be written down. |
 | Client book customers and account deletion (2026-10-29) | A retailer's client book holds details of people who may not be on ALEE. Deleting the retailer's account removes them with it; a client-book customer has no account of his own to delete. Take legal advice before launch, alongside the account deletion question below. |
@@ -1034,7 +1035,7 @@ These limit the demo only. They change no Phase 1 rule.
 - **The check also applies at display.** Buyers never see an "Authorised distributor" tag, and are never pointed to a distributor who isn't approved now, even if an appointment exists.
 - **If his approval is removed or refused later,** his appointments stop counting immediately, with the records kept, and the manufacturer's own rate shows again in that area.
 
-**How it was built (proposed 2026-11-02):**
+**How it was built (proposed 2026-11-02, agreed by the owner 2026-11-02):**
 - **A removal is its own permanent record,** in `role_removals`. A role decision stays final (9.3), so nothing about it is rewritten.
 - **Removing or refusing ends his appointments and withdraws his open offers,** so the area is free for the manufacturer to appoint someone else. Approving him again doesn't bring them back: the manufacturer offers afresh.
 - **Where a nearer appointment no longer counts,** a wider one still in effect decides.
