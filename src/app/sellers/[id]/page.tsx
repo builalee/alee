@@ -23,6 +23,7 @@ export default async function SellerProfilePage({ params }: { params: Promise<{ 
         <p className="text-sm">{me.id === id ? text.buyer.yourOwn : text.buyer.contactHidden}</p>
       </Card>
       {rates === null && <p>{text.buyer.failed}</p>}
+      {rates?.length === 0 && me.id !== id && <p>{text.buyer.none}</p>}
       {rates?.map((r) => <RateCard key={r.brandId} rates={r} showSeller={false} />)}
     </Screen>
   );

@@ -48,5 +48,5 @@ export function ActionForm({ action, submit, secondary, startSaved, children }: 
 }
 
 const primaryButton = "w-full rounded-lg bg-foreground px-3 py-3 text-lg font-semibold text-background disabled:opacity-50";
-const secondaryButton = "w-full rounded-lg border border-current/40 px-3 py-2 font-medium disabled:opacity-50";
+const secondaryButton = "w-full rounded-lg border border-current/40 px-3 py-3 font-medium disabled:opacity-50";
 const savedButton = "w-full rounded-lg border border-current/40 px-3 py-3 text-lg font-semibold text-green-700 dark:text-green-400";

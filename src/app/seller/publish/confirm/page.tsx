@@ -26,12 +26,14 @@ export default async function ConfirmPage({ searchParams }: { searchParams: Prom
     return (
       <Screen title={text.publish.confirmTitle} back="/seller/publish">
         <p role="alert" className="text-red-700 dark:text-red-400">{text.publish.needRates}</p>
-        <Link href="/seller/publish" className="underline">{text.publish.back}</Link>
+        <Link href="/seller/publish" className="py-3 underline">{text.publish.back}</Link>
       </Screen>
     );
   }
 
   const previews = await Promise.all(entered.map((e) => getPublishPreview(e.line.brand_id, family.id, e.rate)));
+  // Confirm stays off unless every line shows what buyers will see.
+  const blocked = previews.some((p) => p.error || p.lines.length === 0);
 
   return (
     <Screen title={text.publish.confirmTitle} back="/seller/publish">
@@ -59,18 +61,18 @@ export default async function ConfirmPage({ searchParams }: { searchParams: Prom
                 : differences.length > 1 ? text.publish.variesByGrade
                 : differences[0] === 0 ? text.publish.sameAsBase : formatSignedRupees(String(differences[0]));
               return (
-                <details key={area} className="border-t border-current/15 pt-2">
-                  <summary className="font-medium">
+                <details key={area} className="border-t border-current/15">
+                  <summary className="py-3 font-medium">
                     {area || text.publish.everywhere} · {differenceText} · {rows.length} {text.publish.rates}
                   </summary>
                   <table className="w-full text-left">
                     <tbody>
                       {rows.map((r, j) => (
                         <tr key={j} className="border-t border-current/10">
-                          <td className="py-1 pr-2">{r.grade} · {r.size}</td>
-                          <td className="py-1 text-right">
+                          <td className="py-2 pr-2">{r.grade} · {r.size}</td>
+                          <td className="py-2 text-right text-lg font-semibold">
                             {r.area_rate_text ?? r.message}
-                            {r.area_discount_text && <span className="block text-sm">{r.area_discount_text}</span>}
+                            {r.area_discount_text && <span className="block text-sm font-normal">{r.area_discount_text}</span>}
                           </td>
                         </tr>
                       ))}
@@ -82,6 +84,8 @@ export default async function ConfirmPage({ searchParams }: { searchParams: Prom
           </Card>
         );
       })}
+      {blocked && <p role="alert" className="font-medium text-red-700 dark:text-red-400">{text.publish.cannotConfirm}</p>}
+      {!blocked && (
       <ActionForm action={publishToday} submit={text.publish.confirm}>
         {/* Made once per screen, so a second tap is the same publish (decision 16.10). */}
         <input type="hidden" name="key" value={randomUUID()} />
@@ -92,7 +96,8 @@ export default async function ConfirmPage({ searchParams }: { searchParams: Prom
           </span>
         ))}
       </ActionForm>
-      <Link href="/seller/publish" className="text-center underline">{text.publish.back}</Link>
+      )}
+      <Link href="/seller/publish" className="py-3 text-center underline">{text.publish.back}</Link>
     </Screen>
   );
 }

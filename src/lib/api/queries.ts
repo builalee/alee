@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { text } from "@/lib/text";
 
 /**
  * Everything screens read. Each read runs as the logged-in person, so Row
@@ -307,7 +308,7 @@ export async function getPublishPreview(brandId: string, familyId: string, baseR
   const { data, error } = await supabase.rpc("rate_preview", {
     p_brand_id: brandId, p_segment_id: familyId, p_base_rate: baseRate,
   });
-  if (error) return { error: error.code === "P0001" ? error.message : null, lines: [] };
+  if (error) return { error: error.code === "P0001" ? error.message : text.common.somethingWrong, lines: [] };
   return {
     error: null,
     lines: (data ?? []) as {
@@ -337,7 +338,7 @@ export async function getMyEnquiries() {
     seller: store(e.seller_id),
     recipient: e.recipient_id !== e.seller_id ? store(e.recipient_id) : null,
     brand: brands?.find((b) => b.id === e.brand_id)?.name ?? "",
-    quantity: e.quantity === null ? null : `${e.quantity} ${e.quantity_unit}`,
+    quantity: e.quantity === null ? null : `${e.quantity} ${text.units[e.quantity_unit as keyof typeof text.units]}`,
     note: e.note as string | null,
     afterClose: Boolean(e.received_after_close),
   }));

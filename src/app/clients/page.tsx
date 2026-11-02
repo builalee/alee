@@ -24,7 +24,7 @@ export default async function ClientBookPage({ searchParams }: { searchParams: P
       </Link>
       <form className="flex gap-2" role="search">
         <label htmlFor="q" className="sr-only">{text.clients.search}</label>
-        <input id="q" name="q" defaultValue={q ?? ""} placeholder={text.clients.search} className={inputStyle} />
+        <input id="q" name="q" type="search" enterKeyHint="search" defaultValue={q ?? ""} placeholder={text.clients.search} className={`${inputStyle} min-w-0`} />
         <button type="submit" className="rounded-lg border border-current/40 px-4 font-medium">{text.clients.searchButton}</button>
       </form>
       {clients.length === 0 && <p>{q ? text.clients.noMatch : text.clients.noClients}</p>}

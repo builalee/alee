@@ -25,7 +25,7 @@ export default async function BrandPage() {
           {lines.map((line) => (
             <div key={line.id} className="flex flex-col gap-2 border-t border-current/15 pt-3">
               <p className="font-medium">{line.name}</p>
-              <Link href={`/seller/products?brand=${line.id}`} className="underline">{text.brand.setUp}</Link>
+              <Link href={`/seller/products?brand=${line.id}`} className="self-start py-3 underline">{text.brand.setUp}</Link>
               {line.isOwner && <p className="text-sm">{text.brand.owner}</p>}
               {line.isClaimed && <p className="text-sm">{text.brand.claimed}</p>}
               {isManufacturer(me) && !line.isRegular && !line.hasOwner && !line.isClaimed && (

@@ -42,7 +42,7 @@ export function Amount({ name, placeholder, zeroLabel, saved, signed }: {
             value={amount} onChange={(e) => setAmount(e.target.value)} />
         </div>
       )}
-      <label className="flex items-center gap-2">
+      <label className="flex min-h-11 items-center gap-2">
         <input type="checkbox" className="size-5" checked={isZero} onChange={(e) => setIsZero(e.target.checked)} />
         {zeroLabel}
       </label>
@@ -69,8 +69,8 @@ export function AreaDifferences({ districts, saved, placeholder }: {
       {rows.map((d) => (
         <div key={d.id} className="flex flex-col gap-2 border-t border-current/15 pt-3">
           <div className="flex items-center justify-between gap-3">
-            <label htmlFor={`area_${d.id}`} className="font-medium">{d.name} (district, {d.stateName})</label>
-            <button type="button" data-change className="shrink-0 text-sm underline"
+            <label htmlFor={`area_${d.id}`} className="font-medium">{text.common.districtOf(d.name, d.stateName)}</label>
+            <button type="button" data-change className="shrink-0 rounded-lg border border-current/40 px-3 py-2 text-sm"
               onClick={() => setAdded(added.filter((id) => id !== d.id))}>{text.rates.removeDistrict}</button>
           </div>
           <Amount name={`area_${d.id}`} placeholder={placeholder} zeroLabel={text.rates.sameRate} saved={saved[d.id]} signed />
@@ -80,7 +80,7 @@ export function AreaDifferences({ districts, saved, placeholder }: {
         <select aria-label={text.rates.addDistrict} value="" className={inputStyle}
           onChange={(e) => setAdded([...added, e.target.value])}>
           <option value="" disabled>{text.rates.addDistrict}</option>
-          {left.map((d) => <option key={d.id} value={d.id}>{d.name} (district, {d.stateName})</option>)}
+          {left.map((d) => <option key={d.id} value={d.id}>{text.common.districtOf(d.name, d.stateName)}</option>)}
         </select>
       )}
     </>

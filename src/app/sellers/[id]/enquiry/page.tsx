@@ -44,7 +44,7 @@ export default async function EnquiryPage({ params, searchParams }: {
         <Field label={text.enquiry.note} htmlFor="note">
           <textarea id="note" name="note" rows={3} maxLength={1000} className={inputStyle} />
         </Field>
-        <label className="flex items-center gap-2">
+        <label className="flex min-h-11 items-center gap-2">
           <input type="checkbox" name="showName" value="yes" defaultChecked className="size-5" />
           {text.enquiry.showName}
         </label>

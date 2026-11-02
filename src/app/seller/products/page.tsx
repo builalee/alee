@@ -36,7 +36,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
         <fieldset className="grid grid-cols-2 gap-2">
           <legend className="mb-2 font-medium">{text.products.grades}</legend>
           {offering.grades.map((g) => (
-            <label key={g.id} className="flex items-center gap-2">
+            <label key={g.id} className="flex min-h-11 items-center gap-2">
               <input type="checkbox" name="grade" value={g.id} defaultChecked={ticked(g.selected)} className="size-5" />
               {g.name}
             </label>
@@ -45,7 +45,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Pro
         <fieldset className="grid grid-cols-3 gap-2">
           <legend className="mb-2 font-medium">{text.products.sizes}</legend>
           {offering.sizes.map((s) => (
-            <label key={s.id} className="flex items-center gap-2">
+            <label key={s.id} className="flex min-h-11 items-center gap-2">
               <input type="checkbox" name="size" value={s.id} defaultChecked={ticked(s.selected)} className="size-5" />
               {s.display_name}
             </label>

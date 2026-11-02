@@ -71,11 +71,11 @@ export default async function DistributorsPage() {
               </Field>
               <fieldset className="flex flex-col gap-2">
                 <legend className="font-medium">{text.territory.type}</legend>
-                <label className="flex items-center gap-2">
+                <label className="flex min-h-11 items-center gap-2">
                   <input type="radio" name="type" value="distributor_prices" required className="size-5" />
                   {text.territory.typeA}
                 </label>
-                <label className="flex items-center gap-2">
+                <label className="flex min-h-11 items-center gap-2">
                   <input type="radio" name="type" value="manufacturer_prices" className="size-5" />
                   {text.territory.typeB}
                 </label>

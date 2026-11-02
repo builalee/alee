@@ -21,7 +21,7 @@ export default async function PublishPage({ searchParams }: { searchParams: Prom
     <Screen title={text.nav.publish} back="/">
       {published && <p role="status" className="font-medium text-green-700 dark:text-green-400">{text.publish.published}</p>}
       {lines.length === 0 ? (
-        <p>{text.publish.nothing} <Link href="/seller" className="underline">{text.nav.sellerSetup}</Link></p>
+        <p>{text.publish.nothing} <Link href="/seller" className="inline-block py-3 underline">{text.nav.sellerSetup}</Link></p>
       ) : (
         <>
           {!publishedToday && <p>{text.publish.intro}</p>}
