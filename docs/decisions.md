@@ -1042,6 +1042,14 @@ These limit the demo only. They change no Phase 1 rule.
 - **Having the role means holding that role now.** A distributor later approved as something else as well stays a distributor until that role itself is removed.
 - **There is no admin button for removal yet.** It exists in the database and is checked. The screen comes with the fuller admin screens, before launch.
 
+### 16.11 How Stage 3 was built (proposed 2026-11-02)
+- **A buyer's area is his account's district.** He sees rates for that area only; there's no picking another area in the demo.
+- **"Rates in my area" lists every public seller's brand lines.** Subscribing isn't in the demo (16.1), so there's no feed of chosen sellers yet.
+- **Enquiries go to the seller, except in a Type B area,** where they go to the authorised distributor (2.36). **In a Type A area** the buyer is already pointed to the distributor; an enquiry sent from the manufacturer's own profile there still goes to the manufacturer. This is open for the owner to confirm.
+- **"Received after close"** follows the market of the brand line the buyer enquired about.
+- **Publishing always sends the exact rates shown on the confirmation screen.** "Move every rate" only fills the boxes, so what he checks is what goes out.
+- **Quoting, declining and forwarding enquiries** are not in the demo.
+
 ### 16.10 Stage 3: Publish and Send enquiry count once
 **Decision (2026-11-02, by the owner):** Publish and Send enquiry must count once even if tapped twice: one publish, one alert, one enquiry. This is built with Stage 3, in the database as well as on the button, because a slow connection can send the same tap twice.
 

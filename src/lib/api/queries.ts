@@ -243,6 +243,127 @@ export async function getMissing(sellerId: string, brandId: string, familyId: st
   return [...new Set(lines.flatMap((l) => l.missing ?? []))];
 }
 
+/** One line of what a buyer sees, from the rate engine. Final figures only. */
+export type BuyerLine = {
+  brand_name: string;
+  product_id: string | null;
+  grade: string | null;
+  size_id: string | null;
+  size: string | null;
+  status: string;
+  message: string | null;
+  tag: string | null;
+  area_rate_text: string | null;
+  area_rate_label: string | null;
+  area_discount_text: string | null;
+  ex_works_label: string | null;
+  ex_works_text: string | null;
+  ex_works_discount_text: string | null;
+  market: string | null;
+  closed_at: string | null;
+  published_at: string | null;
+  published_today: boolean | null;
+};
+
+export type SellerRates = { sellerId: string; storeName: string; brandId: string; lines: BuyerLine[] };
+
+/** Every public seller's rates for the logged-in buyer's own area, one group per brand line. */
+export async function getAreaRates(familyId: string, sellerId?: string): Promise<SellerRates[] | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("area_rates", { p_segment_id: familyId, p_seller_id: sellerId ?? null });
+  if (error) return null;
+  const groups: SellerRates[] = [];
+  for (const row of (data ?? []) as { seller_id: string; store_name: string; brand_id: string; line: BuyerLine }[]) {
+    let group = groups.find((g) => g.sellerId === row.seller_id && g.brandId === row.brand_id);
+    if (!group) {
+      group = { sellerId: row.seller_id, storeName: row.store_name, brandId: row.brand_id, lines: [] };
+      groups.push(group);
+    }
+    group.lines.push(row.line);
+  }
+  return groups;
+}
+
+export const getRegionName = async (regionId: string) => {
+  const supabase = await createClient();
+  const { data } = await supabase.from("regions").select("name").eq("id", regionId).maybeSingle();
+  return (data?.name as string | undefined) ?? "";
+};
+
+/** The seller's brand lines as they stand for today's publish. */
+export async function getPublishLines(familyId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("publish_prefill");
+  return ((data ?? []) as {
+    brand_id: string; segment_id: string; line_name: string; last_base_rate: string | null;
+    current_unit: "tonne" | "kg"; last_published_at: string | null;
+    move_status: "move" | "needs_rate" | "unit_changed" | "not_quoting";
+  }[]).filter((l) => l.segment_id === familyId);
+}
+
+/** What buyers in every area would see at this basic rate, from the rate engine. */
+export async function getPublishPreview(brandId: string, familyId: string, baseRate: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("rate_preview", {
+    p_brand_id: brandId, p_segment_id: familyId, p_base_rate: baseRate,
+  });
+  if (error) return { error: error.code === "P0001" ? error.message : null, lines: [] };
+  return {
+    error: null,
+    lines: (data ?? []) as {
+      area_name: string | null; grade: string | null; size: string | null; status: string; message: string | null;
+      area_rate_text: string | null; area_discount_text: string | null; missing: string[] | null;
+    }[],
+  };
+}
+
+/** Enquiries this person sent. */
+export async function getMyEnquiries() {
+  const supabase = await createClient();
+  const { data } = await supabase.from("enquiries")
+    .select("id, created_at, seller_id, recipient_id, brand_id, quantity, quantity_unit, note, received_after_close")
+    .order("created_at", { ascending: false });
+  const rows = data ?? [];
+  const sellerIds = [...new Set(rows.flatMap((e) => [e.seller_id, e.recipient_id]))];
+  const [{ data: sellers }, { data: brands }] = await Promise.all([
+    supabase.from("seller_profiles").select("account_id, store_name").in("account_id", sellerIds),
+    supabase.from("brands").select("id, name").in("id", [...new Set(rows.map((e) => e.brand_id))]),
+  ]);
+  const store = (id: string) => sellers?.find((s) => s.account_id === id)?.store_name ?? "";
+  return rows.map((e) => ({
+    id: e.id as string,
+    createdAt: e.created_at as string,
+    seller: store(e.seller_id),
+    recipient: e.recipient_id !== e.seller_id ? store(e.recipient_id) : null,
+    brand: brands?.find((b) => b.id === e.brand_id)?.name ?? "",
+    quantity: e.quantity === null ? null : `${e.quantity} ${e.quantity_unit}`,
+    note: e.note as string | null,
+    afterClose: Boolean(e.received_after_close),
+  }));
+}
+
+/** Enquiries this seller received. A hidden name comes back empty from the database. */
+export async function getReceivedEnquiries() {
+  const supabase = await createClient();
+  const { data } = await supabase.rpc("received_enquiries");
+  return (data ?? []) as {
+    id: string; created_at: string; brand_name: string; grade: string | null; size: string | null;
+    quantity: string | null; quantity_unit: string | null; note: string | null; area_name: string;
+    received_after_close: boolean; via_seller: string | null; buyer_name: string | null;
+    buyer_phone: string | null; buyer_type: Role; buyer_recent: number;
+  }[];
+}
+
+/** Grades and sizes a buyer can name in an enquiry. */
+export async function getFamilyItems(familyId: string) {
+  const supabase = await createClient();
+  const [{ data: grades }, { data: sizes }] = await Promise.all([
+    supabase.from("products").select("id, name").eq("segment_id", familyId).eq("is_active", true).order("name"),
+    supabase.from("sizes").select("id, display_name").eq("segment_id", familyId).eq("is_active", true).order("sort_order"),
+  ]);
+  return { grades: grades ?? [], sizes: sizes ?? [] };
+}
+
 export async function getTerritory(sellerId: string) {
   const supabase = await createClient();
   const [{ data: mine }, { data: toMe }, { data: sellers }, { data: regions }, { data: brands }, { data: approved }] = await Promise.all([
