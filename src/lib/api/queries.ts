@@ -16,13 +16,15 @@ export const getMe = cache(async () => {
   const user = data.user;
   if (!user) return null;
 
-  const [{ data: account }, { data: requests }] = await Promise.all([
+  const [{ data: account }, { data: requests }, { data: removals }] = await Promise.all([
     supabase.from("accounts").select("*").eq("id", user.id).maybeSingle(),
-    supabase.from("role_requests").select("requested_role, status, requested_at")
+    supabase.from("role_requests").select("id, requested_role, status, requested_at")
       .eq("account_id", user.id).order("requested_at", { ascending: false }),
+    supabase.from("role_removals").select("request_id"),
   ]);
 
-  const role: Role = requests?.find((r) => r.status === "approved")?.requested_role ?? "retailer";
+  const removed = new Set((removals ?? []).map((r) => r.request_id));
+  const role: Role = requests?.find((r) => r.status === "approved" && !removed.has(r.id))?.requested_role ?? "retailer";
   const pendingRole: Role | null = requests?.find((r) => r.status === "requested")?.requested_role ?? null;
 
   return {
@@ -243,12 +245,13 @@ export async function getMissing(sellerId: string, brandId: string, familyId: st
 
 export async function getTerritory(sellerId: string) {
   const supabase = await createClient();
-  const [{ data: mine }, { data: toMe }, { data: sellers }, { data: regions }, { data: brands }] = await Promise.all([
+  const [{ data: mine }, { data: toMe }, { data: sellers }, { data: regions }, { data: brands }, { data: approved }] = await Promise.all([
     supabase.from("territory_allocations").select("*").eq("manufacturer_id", sellerId).in("status", ["offered", "active"]),
     supabase.from("territory_allocations").select("*").eq("distributor_id", sellerId).in("status", ["offered", "active"]),
-    supabase.from("seller_profiles").select("account_id, store_name, region_id").order("store_name"),
+    supabase.from("seller_profiles").select("account_id, store_name"),
     supabase.from("regions").select("id, name").eq("level", "district"),
     supabase.from("brands").select("id, name").eq("owner_id", sellerId),
+    supabase.rpc("appointable_distributors"),
   ]);
   const regionName = (id: string) => regions?.find((r) => r.id === id)?.name ?? "";
   const sellerName = (id: string) => sellers?.find((s) => s.account_id === id)?.store_name ?? "";
@@ -264,7 +267,7 @@ export async function getTerritory(sellerId: string) {
     mine: (mine ?? []).map(describe),
     toMe: (toMe ?? []).map(describe),
     ownedBrands: brands ?? [],
-    distributors: (sellers ?? []).filter((s) => s.account_id !== sellerId)
-      .map((s) => ({ id: s.account_id as string, name: `${s.store_name} (${regionName(s.region_id)})` })),
+    distributors: ((approved ?? []) as { account_id: string; store_name: string; region_id: string }[])
+      .map((s) => ({ id: s.account_id, name: `${s.store_name} (${regionName(s.region_id)})` })),
   };
 }

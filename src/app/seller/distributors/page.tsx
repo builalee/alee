@@ -67,6 +67,7 @@ export default async function DistributorsPage() {
                   <option value="" disabled>{text.common.choose}</option>
                   {territory.distributors.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
                 </select>
+                {territory.distributors.length === 0 && <p className="text-sm">{text.territory.noDistributors}</p>}
               </Field>
               <fieldset className="flex flex-col gap-2">
                 <legend className="font-medium">{text.territory.type}</legend>

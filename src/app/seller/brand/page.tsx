@@ -29,9 +29,13 @@ export default async function BrandPage() {
               {line.isOwner && <p className="text-sm">{text.brand.owner}</p>}
               {line.isClaimed && <p className="text-sm">{text.brand.claimed}</p>}
               {isManufacturer(me) && !line.isRegular && !line.hasOwner && !line.isClaimed && (
-                <ActionForm action={claimBrand} secondary submit={text.brand.claim}>
-                  <input type="hidden" name="brandId" value={line.id} />
-                </ActionForm>
+                me.role === "manufacturer" ? (
+                  <ActionForm action={claimBrand} secondary submit={text.brand.claim}>
+                    <input type="hidden" name="brandId" value={line.id} />
+                  </ActionForm>
+                ) : (
+                  <p className="text-sm">{text.brand.claimAfterApproval}</p>
+                )
               )}
             </div>
           ))}
