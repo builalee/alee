@@ -188,6 +188,7 @@ export const text = {
     everywhere: "Everywhere",
     sameAsBase: "same as base",
     diffNotSet: "difference not set",
+    variesByGrade: "varies by grade",
     moveAsk: "Move every rate by",
     moveYes: "Yes, move",
     moveCancel: "Cancel",

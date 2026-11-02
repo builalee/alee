@@ -54,9 +54,10 @@ export default async function ConfirmPage({ searchParams }: { searchParams: Prom
             {areas.map((area) => {
               const rows = preview.lines.filter((l) => (l.area_name ?? "") === area);
               // Each place shows its difference, so the overview needs no opening.
-              const difference = rows.find((r) => r.area_difference !== null)?.area_difference ?? null;
-              const differenceText = difference === null ? text.publish.diffNotSet
-                : Number(difference) === 0 ? text.publish.sameAsBase : formatSignedRupees(String(difference));
+              const differences = [...new Set(rows.filter((r) => r.area_difference !== null).map((r) => Number(r.area_difference)))];
+              const differenceText = differences.length === 0 ? text.publish.diffNotSet
+                : differences.length > 1 ? text.publish.variesByGrade
+                : differences[0] === 0 ? text.publish.sameAsBase : formatSignedRupees(String(differences[0]));
               return (
                 <details key={area} className="border-t border-current/15 pt-2">
                   <summary className="font-medium">
