@@ -744,3 +744,28 @@ select pg_temp.expect_value('Conversion through weight: 56,000/tonne is 56/kg, 4
          || ' | ' || trim_scale(convert_rate(56000, 'tonne', 'piece', pg_temp.size('12mm')))$q$);
 select pg_temp.expect_refused('A size whose weight is not verified is never used to convert',
   $q$select convert_rate(56000, 'tonne', 'piece', (select z.id from sizes z where not z.is_verified limit 1))$q$);
+
+-- Only approved distributors count, in the buyer's own answer ------------------------------
+
+-- Appointments held by Tara, a retailer, as could exist before the rule.
+select pg_temp.as_owner();
+insert into territory_allocations (manufacturer_id, distributor_id, brand_id, segment_id, region_id, allocation_type, status, accepted_at)
+select '00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000a2', (select shakti from k), (select tmt from k), x.region, x.kind::territory_type, 'active', now()
+  from (values ((select satara from k), 'distributor_prices'), ((select pune from k), 'manufacturer_prices')) as x (region, kind);
+
+select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');
+select pg_temp.expect_value('Type A held by someone not approved: the buyer sees Farid''s rate, and is not pointed to her',
+  'priced | ₹53,000/tonne | Satara rate',
+  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000b2', (select shakti from k), (select satara from k), 'Fe500', '12mm')$q$);
+select pg_temp.expect_value('Type B held by someone not approved: Gopal''s rate, with no tag',
+  'priced | ₹54,000/tonne | Pune rate',
+  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000b3', (select shakti from k), (select pune from k), 'Fe500', '12mm')$q$);
+
+select remove_role('00000000-0000-0000-0000-0000000000b4', 'distributor', 'Check reason');
+select remove_role('00000000-0000-0000-0000-0000000000b5', 'distributor', 'Check reason');
+select pg_temp.expect_value('Dev''s approval removed (Type A): Farid''s own rate shows again in Sangli',
+  'priced | ₹53,000/tonne | Sangli rate',
+  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000b2', (select shakti from k), (select sangli from k), 'Fe500', '12mm')$q$);
+select pg_temp.expect_value('Bala''s approval removed (Type B): Farid''s rate in Kolhapur, and the tag is gone',
+  'priced | ₹53,000/tonne | Kolhapur rate',
+  $q$select pg_temp.q('00000000-0000-0000-0000-0000000000b2', (select shakti from k), (select kolhapur from k), 'Fe500', '12mm')$q$);

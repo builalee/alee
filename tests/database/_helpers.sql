@@ -170,6 +170,15 @@ begin
 end;
 $$;
 
+-- Approves the waiting role requests of every test person (ids
+-- 00000000-0000-0000-0000-...), so checks about other things run with people
+-- who really hold their roles. Runs with owner rights, whoever is acting.
+create function pg_temp.approve_test_roles()
+returns void language sql security definer as $$
+  update public.role_requests set status = 'approved', decided_by = account_id, decided_at = clock_timestamp()
+   where status = 'requested' and account_id::text like '00000000-0000-0000-0000-%';
+$$;
+
 -- Gives every test seller (ids 00000000-0000-0000-0000-...) with a seller
 -- profile a reach plan covering every state, so checks about other things
 -- are not stopped by reach. Checks about reach itself do not call this.

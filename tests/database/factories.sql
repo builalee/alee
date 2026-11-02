@@ -67,6 +67,7 @@ select x.id::uuid, b.id, s.id
  cross join (select id from brands where name = 'Check Steel') b;
 
 -- O owns Check Steel (claimed and approved the normal way).
+select pg_temp.approve_test_roles();
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
 select claim_brand((select id from brands where name = 'Check Steel'));
 select pg_temp.as_admin('00000000-0000-0000-0000-0000000000c3');

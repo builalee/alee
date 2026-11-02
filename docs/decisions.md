@@ -784,6 +784,8 @@ All limits are settings admins can change:
 
 | Question | Notes |
 |---|---|
+| Dealer rate and godown rate for distributors (2026-11-02) | **The owner's direction, for after the demo:** a distributor can have two rates per appointed brand. A **dealer rate** is seen only by buyers he marks as dealers; a **godown rate** is seen by everyone else. Each can be ex-factory, ex-godown or an area rate. **Before building, settle two conflicts with CLAUDE.md:** (1) section 19 lists "separate retail and bulk pricing" as out of scope, and two rates by buyer type is close to that; (2) section 8 allows only "[area] rate" or "Ex-[plant city]" as labels, so "ex-factory" and "ex-godown" need the wording rule updated. Also settle how a buyer is marked a dealer, and whether he is told. |
+| Distributors asking a manufacturer for an appointment (2026-11-02) | Agreed by the owner as a later feature, not for the demo. Today only the manufacturer offers (2.33 to 2.36), and a distributor adding a brand to his list sends nothing to its manufacturer. Settle how the request would work before building it. |
 | "Also ask these sellers" and competitor comparison (2026-10-29) | Phase 1.1 featured placement suggests other sellers when a buyer compares. CLAUDE.md section 19 excludes "competitor comparison". Before Phase 1.1 is built, settle where the line is: suggestions for a buyer to ask are not the same as showing sellers how competitors price, but the boundary should be written down. |
 | Client book customers and account deletion (2026-10-29) | A retailer's client book holds details of people who may not be on ALEE. Deleting the retailer's account removes them with it; a client-book customer has no account of his own to delete. Take legal advice before launch, alongside the account deletion question below. |
 | Account deletion vs the trade record | Deleting an account currently removes everything, **including his publishes** (nothing else can remove them). Once orders exist, the other party must keep his order history and bills. Likely answer: remove personal details, keep the trade record without the name. Consent proof may also need keeping for a period. Take legal advice before launch. |
@@ -992,4 +994,54 @@ These limit the demo only. They change no Phase 1 rule.
 **Found 2026-11-01:** on the owner's home connection the router reported the alee-dev address (`*.supabase.co`) as non-existent, while a public lookup service (1.1.1.1) found it. Public reports describe Indian providers blocking Supabase since February 2026, unevenly by provider and city. We have not confirmed that this is the cause on his connection.
 
 **Rule:** every call to Supabase stays on the server (Vercel), outside the user's connection. Browser code and the phone app never call a Supabase address. This makes CLAUDE.md rule 1 essential for ALEE to work in India at all, not only tidy design. Local testing on an affected connection needs its DNS changed, or a Vercel preview instead.
+
+### 16.6 Cuts agreed for the demo's setup screens
+**Decision (2026-11-01, by the owner).** These limit the screens only; the database still supports the full rules.
+- **One grade premium per grade and one loading figure** for all of Maharashtra. Area difference stays per district.
+- **No exclusions** on the areas screen.
+- **At most one appointment of each type,** with no change-of-type screen.
+- **Plain admin lists:** approve or refuse only.
+
+**How it was built (proposed 2026-11-01):**
+- **The one figure is saved on every district he fills in,** never on an "everywhere" row. An "everywhere" row would cover districts he never priced, and they would show "Rate not available" instead of "Price on request".
+- **The basic rate is entered at his first publish.** It exists only as part of a publish, so the setup screens don't ask for it.
+- **The unit is chosen once,** before the template is copied. Converting saved charts when a unit changes isn't built (2.8).
+- **The plant city is a district,** and is his profile location, since no cities are seeded.
+
+### 16.7 Where the databases sit
+**Found 2026-11-01:** alee-dev is in Seoul and The Alee App (the old live project) is in Tokyo. No reason was ever recorded. Supabase offers Mumbai, and a project's region can't be changed after it is created.
+
+**Decision (2026-11-01, by the owner):**
+- **alee-dev stays in Seoul,** for testing only. Work continues on alee-dev for now, including the demo. Vercel's Function Region is set to Seoul (icn1), beside it.
+- **The Alee App is paused and holds nothing that matters.** At launch, a fresh live project is created in Mumbai on Supabase Pro and rebuilt from the migration files. Vercel's region is then set to Mumbai (bom1).
+- **The owner deletes the old paused project himself,** only after the new one is set up.
+- **At launch, the safety hook and CLAUDE.md must be updated** with the new live project's details. The owner pastes that change in, because Claude can't edit the hook.
+
+**The login speed-up** (fewer checks with Supabase on each page) is put off until after the demo.
+
+### 16.8 Setup screens after the owner's first run
+**Decided 2026-11-01, from the owner's feedback.**
+- **Districts are added one at a time,** rather than listing all 36. A district he doesn't add stays "Price on request".
+- **"Same as base rate" is a tick, and is never already ticked.** An added district with no figure is refused, never saved as zero (2.24).
+- **The + and − are on grade premium and area difference.** Loading is a charge, so it has no minus.
+- **A saved form's button shows "Saved ✓" and stays inactive until something changes,** because each save of the rates screen writes a new version into history.
+- **A fuller redesign of setup is for after the demo.**
+
+### 16.9 Only approved distributors and manufacturers count
+**Found 2026-11-02:** a manufacturer could appoint a distributor ALEE hadn't approved, and buyers would have been pointed to him. The list offered every seller.
+
+**Decision (2026-11-02, by the owner):**
+- **Only ALEE-approved distributors** appear in the appointment list, can be appointed, or can accept. Only approved manufacturers can claim a brand.
+- **The check also applies at display.** Buyers never see an "Authorised distributor" tag, and are never pointed to a distributor who isn't approved now, even if an appointment exists.
+- **If his approval is removed or refused later,** his appointments stop counting immediately, with the records kept, and the manufacturer's own rate shows again in that area.
+
+**How it was built (proposed 2026-11-02, agreed by the owner 2026-11-02):**
+- **A removal is its own permanent record,** in `role_removals`. A role decision stays final (9.3), so nothing about it is rewritten.
+- **Removing or refusing ends his appointments and withdraws his open offers,** so the area is free for the manufacturer to appoint someone else. Approving him again doesn't bring them back: the manufacturer offers afresh.
+- **Where a nearer appointment no longer counts,** a wider one still in effect decides.
+- **Having the role means holding that role now.** A distributor later approved as something else as well stays a distributor until that role itself is removed.
+- **There is no admin button for removal yet.** It exists in the database and is checked. The screen comes with the fuller admin screens, before launch.
+
+### 16.10 Stage 3: Publish and Send enquiry count once
+**Decision (2026-11-02, by the owner):** Publish and Send enquiry must count once even if tapped twice: one publish, one alert, one enquiry. This is built with Stage 3, in the database as well as on the button, because a slow connection can send the same tap twice.
 
