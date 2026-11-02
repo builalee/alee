@@ -711,8 +711,44 @@ select pg_temp.as_visitor();
 select pg_temp.expect_message('A visitor who isn''t logged in is told to log in', 'Log in to see rates.',
   $q$select * from buyer_rate('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k), (select karad from k))$q$);
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000a3');
-select pg_temp.expect_message('Another user cannot ask yet (buyers come with subscriptions)', 'Only the seller and ALEE can see these rates for now.',
-  $q$select * from buyer_rate('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k), (select karad from k))$q$);
+-- A logged-in buyer (Prakash, in Pune) sees a public seller's rate for his own
+-- area, as himself (decisions 12.3, 16.1).
+select pg_temp.expect_message('A buyer cannot ask as nobody in particular', 'You can only see rates as yourself.',
+  $q$select * from buyer_rate('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k), (select pune from k))$q$);
+select pg_temp.expect_message('...or as another buyer', 'You can only see rates as yourself.',
+  $q$select * from buyer_rate('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k), (select pune from k),
+       null, null, '00000000-0000-0000-0000-0000000000a2')$q$);
+select pg_temp.expect_message('A buyer cannot ask for another area', 'You can see rates for your own area only.',
+  $q$select * from buyer_rate('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k), (select karad from k),
+       null, null, '00000000-0000-0000-0000-0000000000a3')$q$);
+select pg_temp.expect_message('A buyer cannot ask for a past publish yet', 'Past rates are not available here yet.',
+  $q$select * from buyer_rate('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k), (select pune from k),
+       null, null, '00000000-0000-0000-0000-0000000000a3', (select first from pubs))$q$);
+select pg_temp.expect_value('A buyer sees a public seller''s rate for his own area: the final figure only (Pune is shown per kg)',
+  'priced | ₹56.50/kg | Pune rate | less 1.5% (₹0.85/kg)',
+  $q$select concat_ws(' | ', b.status, b.area_rate_text, b.area_rate_label, b.area_discount_text)
+       from buyer_rate('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k), (select pune from k),
+                       pg_temp.grade('Fe500D'), pg_temp.size('12mm'), '00000000-0000-0000-0000-0000000000a3') b$q$);
+select pg_temp.expect_value('The list for his area has the same figure, and only public sellers',
+  '₹56.50/kg',
+  $q$select (r.line).area_rate_text from area_rates((select tmt from k)) r
+      where r.seller_id = '00000000-0000-0000-0000-0000000000a1' and r.brand_id = (select regular from k)
+        and (r.line).grade = 'Fe500D' and (r.line).size = '12mm'$q$);
+select pg_temp.as_owner();
+update seller_profiles set is_public = false where account_id = '00000000-0000-0000-0000-0000000000a1';
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a3');
+select pg_temp.expect_message('A private seller''s rate is not shown to a buyer he hasn''t approved',
+  'This seller shares his rates only with buyers he approves.',
+  $q$select * from buyer_rate('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k), (select pune from k),
+       null, null, '00000000-0000-0000-0000-0000000000a3')$q$);
+select pg_temp.expect_rows('...and he is left out of the list', 0,
+  $q$select * from area_rates((select tmt from k), '00000000-0000-0000-0000-0000000000a1')$q$);
+select pg_temp.as_owner();
+update seller_profiles set is_public = true where account_id = '00000000-0000-0000-0000-0000000000a1';
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a1');
+select pg_temp.expect_rows('A seller''s own lines are not in his own list', 0,
+  $q$select * from area_rates((select tmt from k), '00000000-0000-0000-0000-0000000000a1')$q$);
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000a3');
 select pg_temp.expect_message('Another user cannot see a seller''s breakdown', 'You can only see the breakdown of your own rates.',
   $q$select * from seller_rate('00000000-0000-0000-0000-0000000000a1', (select regular from k), (select tmt from k), (select karad from k))$q$);
 select pg_temp.expect_message('Another user cannot preview a seller''s rates', 'You can only preview your own rates.',

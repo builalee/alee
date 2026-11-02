@@ -524,3 +524,27 @@ select pg_temp.expect_message('After publishing, F cannot clear his closing time
 select pg_temp.as_owner();
 select pg_temp.expect_refused('Even with the master key, a published seller''s closing time cannot be cleared',
   $q$update seller_profiles set market_close_time = null where account_id = '00000000-0000-0000-0000-0000000000a1'$q$);
+
+-- One publish per tap (decision 16.10) -----------------------------------------------
+
+select pg_temp.as_owner();
+create temp table before_taps as
+select count(*) as n from publishes where seller_id = '00000000-0000-0000-0000-0000000000b2';
+grant select on before_taps to public;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000b2');
+select pg_temp.expect_value('Tapping Publish twice with the same key gives back the same publish', 'same',
+  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 40100, 'brand_id', (select id from brands where is_regular))),
+                                    false, null, null, '00000000-0000-0000-0000-00000000a001')
+                    = publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 40100, 'brand_id', (select id from brands where is_regular))),
+                                    false, null, null, '00000000-0000-0000-0000-00000000a001')
+                 then 'same' end$q$);
+select pg_temp.expect_value('A new tap (a new key) is a new publish', 'different',
+  $q$select case when publish_rates(jsonb_build_array(jsonb_build_object('segment_id', (select tmt from k), 'base_rate', 40200, 'brand_id', (select id from brands where is_regular))),
+                                    false, null, null, '00000000-0000-0000-0000-00000000a002')
+                    <> (select id from publishes where request_key = '00000000-0000-0000-0000-00000000a001')
+                 then 'different' end$q$);
+select pg_temp.as_owner();
+select pg_temp.expect_value('...so three taps made two publishes', '2',
+  $q$select (count(*) - (select n from before_taps))::text from publishes where seller_id = '00000000-0000-0000-0000-0000000000b2'$q$);
+select pg_temp.expect_value('Another seller''s key doesn''t matter: keys count per seller', '1',
+  $q$select count(*)::text from publishes where request_key = '00000000-0000-0000-0000-00000000a001'$q$);

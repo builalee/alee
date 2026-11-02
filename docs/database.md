@@ -56,6 +56,8 @@ erDiagram
     segments        ||--o{ territory_allocations   : "for family"
     regions         ||--o{ territory_allocations   : "area"
     territory_allocations ||--o{ territory_allocation_events : "every step"
+    accounts        ||--o{ enquiries               : "buyer sends"
+    seller_profiles ||--o{ enquiries               : "seller or distributor receives"
     brands          ||--o{ brand_families          : "covers"
     segments        ||--o{ brand_families          : "family"
 ```
@@ -493,6 +495,7 @@ One action by a seller, covering one or more product families, so buyers get one
 | `published_at` | Set by the database at the moment of publishing; can never be back-dated. |
 | `published_by`, `by_admin` | The login that published: the seller, or an admin on his behalf during setup. |
 | `is_correction`, `corrects_publish_id` | Marks a publish that corrects an earlier one, optionally naming which (always the seller's own). The earlier one stays, unchanged. |
+| `request_key` | Sent with each Publish tap. The same key again returns this publish instead of making a second one, so a double tap is one publish and one alert (decision 16.10). Unique per seller; empty on publishes made before it existed. |
 
 ### `publish_items` — one per brand line in a publish
 
@@ -601,6 +604,31 @@ About `resolve_territory`:
 - **Offers, declines, withdrawals, endings and the history:** only the manufacturer, the distributor and admins.
 - **No rates anywhere:** nothing here holds a rate, amount or margin. The manufacturer can't read a distributor's publishes, rates, area settings or charts by any route; the saved checks try each one.
 - **Checks:** `tests/database/territory.sql`.
+
+---
+
+## Area: enquiries
+
+### `enquiries` — one per enquiry a buyer sends
+| Field | Meaning |
+|---|---|
+| `buyer_id` | Who sent it. |
+| `seller_id` | Whose rate or profile he enquired from. |
+| `recipient_id` | Who receives it: the seller, or the appointed distributor when the buyer's area is a Type A or Type B area for that brand (decision 16.11). The distributor sees it marked "via [seller] profile". |
+| `brand_id`, `segment_id` | The brand line. |
+| `region_id` | The buyer's area when he sent it. |
+| `product_id`, `size_id` | Grade and size, if he named them. |
+| `quantity`, `quantity_unit` | How much, if he said. |
+| `note` | His message, up to 1,000 letters. |
+| `show_identity` | Whether the seller may see his name and phone. |
+| `received_after_close` | The seller's market for that brand line was closed when it was sent; the buyer is told the seller will respond when the market opens. |
+| `request_key` | From the form. The same key again returns this enquiry, so a double tap sends one. |
+
+- **`send_enquiry(...)`** is the only way in: a logged-in buyer, as himself, from his own area. Refusals in plain words, e.g. "This seller doesn't sell that brand."
+- **`received_enquiries()`** is what a seller sees of the enquiries sent to him. A hidden name comes back empty, with the buyer's area, type and how many enquiries he sent in the last 30 days instead.
+- **Who sees:** the buyer sees what he sent; admins see all. A seller never reads the table itself, so a hidden name stays hidden.
+- **Never changed or deleted;** it leaves only with the buyer's account.
+- **Checks:** `tests/database/enquiries.sql`.
 
 ---
 
@@ -759,11 +787,12 @@ For one seller, brand, product family and buyer's area (optionally one grade and
 ### Ways in
 | Function | Who can call | Returns |
 |---|---|---|
-| `buyer_rate(...)` | The seller himself and admins, for now (buyers come with subscriptions). A visitor is told "Log in to see rates." | `buyer_rate_line`: final figures, labels, discount lines, unit, market, tag, message. **Never** the basic rate, grade premium or any individual difference. |
+| `buyer_rate(...)` | The seller himself and admins, for any area. Any other logged-in person only as himself, for his own area (his account's district), for a **public** seller or one who approved him as an outside buyer, and only for now, not a past publish. A visitor is told "Log in to see rates." | `buyer_rate_line`: final figures, labels, discount lines, unit, market, tag, message. **Never** the basic rate, grade premium or any individual difference. |
 | `seller_rate(...)` | The seller and admins | `rate_line`: every component in his pricing unit, where each came from, and what's missing. |
 | `rate_preview(brand, family, basic rate)` | The seller and admins | `rate_line` for every area in his current setup, worked out with the rate he's about to publish (default: his latest) and his **current** settings. Areas beyond his reach show "Saved, not applied on your plan". For the publish confirmation. |
 | `ex_works_preview(brand, family, state, grade, size)` | The seller and admins | Before switching ex-works on in a state: what buyers in each district of that state within his reach, and each area of his setup there, would see. E.g. "Satara: Satara rate ₹56,250/tonne", "North Goa: Ex-Karad City ₹56,050/tonne". |
 | `rates_on_day(seller, brand, family, area, day)` | The seller and admins | Every publish of that brand line that day, exactly as published; or "No data available for that day". |
+| `area_rates(family, seller)` | Any logged-in person | Every public seller's lines for his own area, each worked out by `buyer_rate`; optionally one seller. His own lines are left out. The "Rates in my area" screen. |
 | `rate_engine(...)` | Nobody directly | The shared engine they all use. |
 
 - **A past publish** returns only what the seller published, from the versions it pinned. Today's plan, territory, factory and ex-works arrangements are never applied to it. An area it didn't cover shows "No data available for that day" (decision 14.5).
@@ -811,5 +840,5 @@ These appear in CLAUDE.md but have no tables yet. Phase 1 unless marked; phases 
 
 - the area setup screen (it must show a plain coverage summary, e.g. "Kolhapur district: not served, except Kolhapur city")
 - notifications on publish (one per publish)
-- enquiries (an enquiry after close must be marked "received after close", and the buyer told the seller will respond when the market opens; an enquiry from a Type B territory area goes to the authorised distributor)
-- subscriptions and the buyer feed (they will open `buyer_rate` to buyers: any logged-in user for a public seller, approved subscribers for a private one)
+- subscriptions and the buyer feed (they will let approved subscribers of a private seller ask `buyer_rate`; public sellers are already open to any logged-in buyer)
+- quoting or declining an enquiry, and forwarding it to other sellers
